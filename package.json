@@ -1,0 +1,34 @@
+{
+  "name": "solvol",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint",
+    "snapshot": "node -e \"const u=process.env.SNAPSHOT_URL||'http://127.0.0.1:3000';const t=process.env.SNAPSHOT_CRON_SECRET; if(!t){console.error('Set SNAPSHOT_CRON_SECRET'); process.exit(1);} fetch(u+'/api/internal/snapshot',{method:'POST',headers:{Authorization:'Bearer '+t}}).then(r=>r.text()).then(console.log).catch(e=>{console.error(e);process.exit(1);})\"",
+    "poll-snapshots": "node scripts/poller.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.100.5",
+    "better-sqlite3": "^12.9.0",
+    "next": "16.2.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "rss-parser": "^3.13.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vercel": "^52.0.0"
+  }
+}
