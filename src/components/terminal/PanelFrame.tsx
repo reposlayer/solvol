@@ -31,7 +31,7 @@ export function PanelFrame({
       id={id}
       className={`tpanel flex min-h-0 min-w-0 flex-col ${className ?? ""}`}
     >
-      <header className="flex shrink-0 items-center gap-2 border-b border-[var(--terminal-border)] bg-[var(--terminal-panel-2)] px-2.5 py-1.5">
+      <header className="flex min-h-8 shrink-0 items-center gap-2 border-b border-[var(--terminal-border)] bg-[var(--terminal-panel-2)] px-2 py-1">
         {fkey ? <span className="fkey">{fkey}</span> : null}
         <span className="tpanel-label text-[var(--terminal-text-2)]">{title}</span>
         {subtitle ? (
@@ -39,7 +39,7 @@ export function PanelFrame({
             · {subtitle}
           </span>
         ) : null}
-        {right ? <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{right}</div> : null}
+        {right ? <div className="ml-auto flex min-w-0 items-center justify-end gap-1 overflow-hidden">{right}</div> : null}
       </header>
       <div
         className={`min-h-0 min-w-0 flex-1 ${scroll ? "tscroll overflow-auto" : ""} ${bodyClassName ?? ""}`}

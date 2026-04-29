@@ -1,5 +1,6 @@
 "use client";
 
+import type { KeyboardEvent } from "react";
 import type { DiscoveryMarketRow } from "@/lib/polymarket/discovery";
 import { useTerminalDiscovery } from "@/hooks/useTerminalDiscovery";
 import { PanelFrame } from "@/components/terminal/PanelFrame";
@@ -22,6 +23,12 @@ function toneFor(hours: number | null | undefined): string {
   if (hours <= 6) return "var(--terminal-down)";
   if (hours <= 24) return "var(--terminal-amber)";
   return "var(--terminal-cyan)";
+}
+
+function activateRow(event: KeyboardEvent<HTMLElement>, action: () => void) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  action();
 }
 
 export function ResolutionQueuePanel({ onSelectId }: Props) {
@@ -50,10 +57,12 @@ export function ResolutionQueuePanel({ onSelectId }: Props) {
             const color = toneFor(row.hoursToClose);
             const width = Math.max(4, (urgency(row) / maxUrgency) * 100);
             return (
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 key={row.id}
                 onClick={() => onSelectId(row.id)}
+                onKeyDown={(event) => activateRow(event, () => onSelectId(row.id))}
                 className="block w-full px-2.5 py-2 text-left transition-colors hover:bg-[var(--terminal-panel-hi)]"
               >
                 <div className="flex min-w-0 items-center gap-2">
@@ -69,6 +78,7 @@ export function ResolutionQueuePanel({ onSelectId }: Props) {
                       event.stopPropagation();
                       toggleWatchlist(row.id);
                     }}
+                    onKeyDown={(event) => event.stopPropagation()}
                     className={`h-5 w-5 shrink-0 rounded-sm border font-mono text-[10px] ${
                       isWatched(row.id)
                         ? "border-[var(--terminal-amber)]/60 bg-[var(--terminal-amber-soft)] text-[var(--terminal-amber)]"
@@ -90,7 +100,7 @@ export function ResolutionQueuePanel({ onSelectId }: Props) {
                   <span className="tnum">YES {fmtCents(row.yesPrice, 0)}</span>
                   <span className="tnum">{fmtUsd(row.volume24hr)} vol</span>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import type { KeyboardEvent } from "react";
 import type { DiscoveryMarketRow } from "@/lib/polymarket/discovery";
 import { useTerminalDiscovery } from "@/hooks/useTerminalDiscovery";
 import { PanelFrame } from "@/components/terminal/PanelFrame";
@@ -101,6 +102,7 @@ function StarButton({ id }: { id: string }) {
         event.stopPropagation();
         toggleWatchlist(id);
       }}
+      onKeyDown={(event) => event.stopPropagation()}
       className={`h-6 w-6 shrink-0 rounded-sm border font-mono text-[11px] ${
         watched
           ? "border-[var(--terminal-amber)]/60 bg-[var(--terminal-amber-soft)] text-[var(--terminal-amber)]"
@@ -112,6 +114,12 @@ function StarButton({ id }: { id: string }) {
       ★
     </button>
   );
+}
+
+function activateRow(event: KeyboardEvent<HTMLElement>, action: () => void) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  action();
 }
 
 export function OpportunityRadar({ onSelectId }: Props) {
@@ -140,10 +148,12 @@ export function OpportunityRadar({ onSelectId }: Props) {
       ) : (
         <div className="grid gap-1.5 p-2 md:grid-cols-2 2xl:grid-cols-1">
           {cards.map((card, index) => (
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               key={`${card.label}-${card.row.id}`}
               onClick={() => onSelectId(card.row.id)}
+              onKeyDown={(event) => activateRow(event, () => onSelectId(card.row.id))}
               className="group min-w-0 rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] p-2 text-left transition-colors hover:border-[var(--terminal-cyan)]/60 hover:bg-[var(--terminal-panel-hi)]"
             >
               <div className="flex min-w-0 items-center gap-2">
@@ -167,7 +177,7 @@ export function OpportunityRadar({ onSelectId }: Props) {
                   YES {fmtCents(card.row.yesPrice, 0)} · {fmtUsd(card.row.volume24hr)}
                 </span>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}

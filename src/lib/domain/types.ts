@@ -94,6 +94,10 @@ export type ExternalArticle = {
   publishedAt: string;
   summary?: string;
   feedLabel: string;
+  matchedTerms?: string[];
+  relevanceScore?: number;
+  ageMinutes?: number;
+  category?: string;
 };
 
 export type CryptoWindowStats = {

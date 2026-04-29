@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import type { DiscoveryLane, DiscoveryMarketRow } from "@/lib/polymarket/discovery";
 import {
@@ -138,7 +138,7 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
       subtitle={`${rows.length} rows${breadCrumbs.length ? ` · ${breadCrumbs.join(" · ")}` : ""}`}
       right={
         <>
-          <div className="flex gap-1">
+          <div className="tscroll flex max-w-full gap-1 overflow-x-auto">
             {LANE_ORDER.map((l) => (
               <HeaderTab key={l} k={l} />
             ))}
@@ -193,87 +193,75 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
       ) : view === "heatmap" ? (
         <Heatmap rows={sorted} onSelect={onSelectId} />
       ) : (
-        <table className="tdata w-full min-w-[680px]">
-          <thead>
-            <tr>
-              <th>Pin</th>
-              <th>ID</th>
-              <th className="!text-left">Market</th>
-              <SortHead label="YES" k="yesPrice" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHead label="ΔYES" k="shortMovePct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHead label="Vol 24h" k="volume24hr" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHead label="Spike" k="volumeSpikeRatio" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <th>Liq</th>
-              <SortHead label="Close" k="hoursToClose" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <th>Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((r: DiscoveryMarketRow) => (
-              <tr
-                key={r.id}
-                className="cursor-pointer"
-                onClick={() => onSelectId(r.id)}
-              >
-                <td>
+        <div className="min-h-0">
+          <div className="grid grid-cols-[24px_minmax(0,1fr)_48px_58px_58px] gap-2 border-b border-[var(--terminal-border)] bg-[var(--terminal-panel-2)] px-2 py-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--terminal-muted)]">
+            <span>Pin</span>
+            <span>Market</span>
+            <SortButton label="YES" k="yesPrice" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+            <SortButton label="Move" k="shortMovePct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+            <SortButton label="Vol" k="volume24hr" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+          </div>
+          <div className="divide-y divide-[var(--terminal-border)]/70">
+            {sorted.map((r: DiscoveryMarketRow) => {
+              const watched = isWatched(r.id);
+              return (
+                <div
+                  key={r.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectId(r.id)}
+                  onKeyDown={(event) => activateRow(event, () => onSelectId(r.id))}
+                  className="grid cursor-pointer grid-cols-[24px_minmax(0,1fr)_48px_58px_58px] gap-2 px-2 py-1.5 text-left transition-colors hover:bg-[var(--terminal-panel-hi)] focus:bg-[var(--terminal-panel-hi)] focus:outline-none"
+                >
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleWatchlist(r.id);
                     }}
+                    onKeyDown={(e) => e.stopPropagation()}
                     className={`h-5 w-5 rounded-sm border font-mono text-[10px] ${
-                      isWatched(r.id)
+                      watched
                         ? "border-[var(--terminal-amber)]/60 bg-[var(--terminal-amber-soft)] text-[var(--terminal-amber)]"
                         : "border-[var(--terminal-border)] text-[var(--terminal-muted)] hover:border-[var(--terminal-amber)]/60 hover:text-[var(--terminal-amber)]"
                     }`}
-                    aria-label={isWatched(r.id) ? "Remove from watchlist" : "Add to watchlist"}
-                    title={isWatched(r.id) ? "Remove from watchlist" : "Add to watchlist"}
+                    aria-label={watched ? "Remove from watchlist" : "Add to watchlist"}
+                    title={watched ? "Remove from watchlist" : "Add to watchlist"}
                   >
-                    ★
+                    *
                   </button>
-                </td>
-                <td className="text-[var(--terminal-cyan)] tnum">
-                  <Link
-                    href={`/market/${r.id}`}
-                    className="hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {r.id}
-                  </Link>
-                </td>
-                <td className="!whitespace-normal max-w-[320px] text-[var(--terminal-text)]">
-                  <span title={r.question}>{shorten(r.question, 70)}</span>
-                </td>
-                <td className="tnum">{fmtCents(r.yesPrice, 1)}</td>
-                <td className={`tnum font-medium ${moveToneClass(r.shortMovePct)}`}>
-                  {fmtPct(r.shortMovePct, { sign: true, digits: 1 })}
-                </td>
-                <td className="tnum text-[var(--terminal-text-2)]">{fmtUsd(r.volume24hr)}</td>
-                <td
-                  className={`tnum ${
-                    r.volumeSpikeRatio != null && r.volumeSpikeRatio >= 1.5
-                      ? "text-[var(--terminal-amber)]"
-                      : r.volumeSpikeRatio != null && r.volumeSpikeRatio >= 1.2
-                        ? "text-[var(--terminal-up)]"
-                        : "text-[var(--terminal-muted)]"
-                  }`}
-                >
-                  {fmtMult(r.volumeSpikeRatio)}
-                </td>
-                <td className="tnum text-[var(--terminal-muted)]">
-                  {fmtUsd(r.liquidityNum)}
-                </td>
-                <td className="tnum text-[var(--terminal-text-2)]">
-                  {fmtHours(r.hoursToClose ?? null)}
-                </td>
-                <td className="tnum text-[var(--terminal-amber)]">
-                  {r.terminalScore != null ? r.terminalScore.toFixed(1) : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="tnum shrink-0 font-mono text-[10px] text-[var(--terminal-cyan)]">
+                        #{r.id}
+                      </span>
+                      <span className="truncate text-[11px] font-medium text-[var(--terminal-text)]" title={r.question}>
+                        {shorten(r.question, 86)}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex min-w-0 gap-2 font-mono text-[9px] text-[var(--terminal-muted)]">
+                      <span className="tnum shrink-0">spike {fmtMult(r.volumeSpikeRatio)}</span>
+                      <span className="tnum shrink-0">liq {fmtUsd(r.liquidityNum)}</span>
+                      <span className="tnum shrink-0">close {fmtHours(r.hoursToClose ?? null)}</span>
+                      <span className="tnum truncate text-[var(--terminal-amber)]">
+                        score {r.terminalScore != null ? r.terminalScore.toFixed(1) : "-"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="tnum self-center font-mono text-[11px] text-[var(--terminal-text)]">
+                    {fmtCents(r.yesPrice, 0)}
+                  </div>
+                  <div className={`tnum self-center font-mono text-[11px] font-semibold ${moveToneClass(r.shortMovePct)}`}>
+                    {fmtPct(r.shortMovePct, { sign: true, digits: 1 })}
+                  </div>
+                  <div className="tnum self-center truncate font-mono text-[10px] text-[var(--terminal-text-2)]">
+                    {fmtUsd(r.volume24hr)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </PanelFrame>
   );
@@ -281,7 +269,13 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
 
 type SortKey = "shortMovePct" | "volume24hr" | "volumeSpikeRatio" | "yesPrice" | "hoursToClose";
 
-function SortHead({
+function activateRow(event: KeyboardEvent<HTMLElement>, action: () => void) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  action();
+}
+
+function SortButton({
   label,
   k,
   sortKey,
@@ -296,14 +290,13 @@ function SortHead({
 }) {
   const active = sortKey === k;
   return (
-    <th
-      className="cursor-pointer select-none hover:text-[var(--terminal-text-2)]"
+    <button
+      type="button"
+      className={`select-none text-left hover:text-[var(--terminal-text-2)] ${active ? "text-[var(--terminal-text)]" : ""}`}
       onClick={() => onClick(k)}
     >
-      <span className={active ? "text-[var(--terminal-text)]" : ""}>
-        {label}
-        {active ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-      </span>
-    </th>
+      {label}
+      {active ? (sortDir === "asc" ? " ^" : " v") : ""}
+    </button>
   );
 }

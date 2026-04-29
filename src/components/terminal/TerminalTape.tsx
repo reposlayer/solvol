@@ -99,19 +99,19 @@ function TapeContent({ onPick }: { onPick: (id: string) => void }) {
 
 function TapeFallback() {
   return (
-    <span className="px-3 font-mono text-[11px] text-[var(--terminal-muted)]">
+    <span className="px-3 font-mono text-[10px] text-[var(--terminal-muted)]">
       <span className="animate-blink">▍</span> tape…
     </span>
   );
 }
 
 export function TerminalTape() {
-  const { runExplainWithId } = useTerminal();
+  const { setMarketId } = useTerminal();
   const [paused, setPaused] = useState(false);
 
   return (
     <div
-      className={`flex h-9 shrink-0 items-stretch border-t border-[var(--terminal-border)] bg-[var(--terminal-panel)] font-mono text-[11px] ${
+      className={`flex h-7 shrink-0 items-stretch border-t border-[var(--terminal-border)] bg-[var(--terminal-panel)] font-mono text-[10px] ${
         paused ? "tape-paused" : ""
       }`}
       onMouseEnter={() => setPaused(true)}
@@ -124,7 +124,7 @@ export function TerminalTape() {
       <div className="min-h-0 flex-1 overflow-hidden">
         <div className="animate-terminal-tape flex h-full w-max">
           <Suspense fallback={<TapeFallback />}>
-            <TapeContent onPick={(id) => void runExplainWithId(id)} />
+            <TapeContent onPick={setMarketId} />
           </Suspense>
         </div>
       </div>

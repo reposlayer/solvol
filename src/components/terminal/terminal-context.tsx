@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -59,10 +60,6 @@ function readStringArray(key: string): string[] {
   }
 }
 
-function isWorkspaceMode(value: string | null): value is WorkspaceMode {
-  return value === "mission" || value === "flow" || value === "research";
-}
-
 export function TerminalProvider({
   children,
   initialMarketId,
@@ -70,31 +67,40 @@ export function TerminalProvider({
   children: ReactNode;
   initialMarketId?: string;
 }) {
-  const [marketId, setMarketId] = useState(initialMarketId ?? "540816");
-  const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>(() => {
-    if (typeof window === "undefined") return "mission";
-    const storedMode = window.localStorage.getItem(MODE_KEY);
-    return isWorkspaceMode(storedMode) ? storedMode : "mission";
-  });
-  const [watchlist, setWatchlist] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    return readStringArray(WATCHLIST_KEY)
-      .map((id) => cleanMarketId(id))
-      .filter((id): id is string => id !== null)
-      .slice(0, 24);
-  });
-  const [commandHistory, setCommandHistory] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    return readStringArray(COMMAND_HISTORY_KEY).slice(0, 18);
-  });
+  const [marketId, setMarketIdState] = useState(initialMarketId ?? "540816");
+  const [workspaceMode, setWorkspaceModeState] = useState<WorkspaceMode>("mission");
+  const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<MarketMoveExplanation | null>(null);
   const [commandEcho, setCommandEcho] = useState<string | null>(null);
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setWatchlist(
+        readStringArray(WATCHLIST_KEY)
+          .map((id) => cleanMarketId(id))
+          .filter((id): id is string => id !== null)
+          .slice(0, 24),
+      );
+      setCommandHistory(readStringArray(COMMAND_HISTORY_KEY).slice(0, 18));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
   const setWorkspaceMode = useCallback((mode: WorkspaceMode) => {
     setWorkspaceModeState(mode);
     window.localStorage.setItem(MODE_KEY, mode);
+  }, []);
+
+  const setMarketId = useCallback((id: string) => {
+    const clean = cleanMarketId(id);
+    if (!clean) return;
+    setMarketIdState(clean);
+    setError(null);
+    setLoading(false);
+    setResult((prev) => (prev?.marketId === clean ? prev : null));
   }, []);
 
   const addToWatchlist = useCallback((id: string) => {
@@ -171,7 +177,7 @@ export function TerminalProvider({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setMarketId]);
 
   const runExplain = useCallback(async () => {
     await runExplainWithId(marketId);
@@ -201,6 +207,7 @@ export function TerminalProvider({
     }),
     [
       marketId,
+      setMarketId,
       workspaceMode,
       setWorkspaceMode,
       watchlist,

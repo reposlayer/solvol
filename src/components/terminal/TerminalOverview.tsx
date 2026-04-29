@@ -1,34 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
-import type { DiscoveryLane, DiscoveryMarketRow } from "@/lib/polymarket/discovery";
+import type { DiscoveryMarketRow } from "@/lib/polymarket/discovery";
 import { useTerminalDiscovery } from "@/hooks/useTerminalDiscovery";
 import { PanelFrame } from "@/components/terminal/PanelFrame";
-import { useTerminal, type WorkspaceMode } from "@/components/terminal/terminal-context";
+import { useTerminal } from "@/components/terminal/terminal-context";
 import { fmtCents, fmtHours, fmtPct, fmtUsd, moveToneClass, shorten } from "@/lib/format";
 
 type Props = {
   onSelectId: (id: string) => void;
 };
 
-const QUICK_LANES: { lane: DiscoveryLane; label: string; href: string }[] = [
-  { lane: "hot", label: "Hot", href: "/terminal?lane=hot&limit=60" },
-  { lane: "research_worthy", label: "Research", href: "/terminal?lane=research_worthy&limit=60" },
-  { lane: "catalyst_rich", label: "Ledger", href: "/terminal?lane=catalyst_rich&limit=60" },
-  { lane: "anomaly", label: "Anomaly", href: "/terminal?lane=anomaly&limit=60" },
-  { lane: "high_volume", label: "Volume", href: "/terminal?lane=high_volume&limit=60" },
-  { lane: "deadline_risk", label: "Risk", href: "/terminal?lane=deadline_risk&hours=72&limit=60" },
-  { lane: "new", label: "New", href: "/terminal?lane=new&limit=60" },
-];
-
 const EMPTY_ROWS: DiscoveryMarketRow[] = [];
-
-const MODES: { mode: WorkspaceMode; label: string; detail: string }[] = [
-  { mode: "mission", label: "Mission", detail: "balanced" },
-  { mode: "flow", label: "Flow", detail: "tape first" },
-  { mode: "research", label: "Research", detail: "thesis desk" },
-];
 
 function uniqueRows(...groups: DiscoveryMarketRow[][]): DiscoveryMarketRow[] {
   const seen = new Set<string>();
@@ -100,15 +83,15 @@ function Metric({
   tone?: string;
 }) {
   return (
-    <div className="min-w-0 border-r border-[var(--terminal-border)] px-3 py-2 last:border-r-0">
-      <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--terminal-muted)]">
+    <div className="min-w-0 border-r border-[var(--terminal-border)] px-2 py-1.5 last:border-r-0">
+      <div className="font-mono text-[8.5px] uppercase tracking-[0.14em] text-[var(--terminal-muted)]">
         {label}
       </div>
-      <div className={`tnum mt-0.5 truncate font-mono text-[15px] font-semibold ${tone ?? "text-[var(--terminal-text)]"}`}>
+      <div className={`tnum mt-0.5 truncate font-mono text-[13px] font-semibold ${tone ?? "text-[var(--terminal-text)]"}`}>
         {value}
       </div>
       {sub ? (
-        <div className="mt-0.5 truncate font-mono text-[9.5px] text-[var(--terminal-muted)]">
+        <div className="mt-0.5 truncate font-mono text-[9px] text-[var(--terminal-muted)]">
           {sub}
         </div>
       ) : null}
@@ -137,7 +120,7 @@ function HotRow({
     <button
       type="button"
       onClick={() => onSelectId(row.id)}
-      className="min-w-0 rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-2 py-1.5 text-left transition-colors hover:border-[var(--terminal-cyan)]/60 hover:bg-[var(--terminal-panel-hi)]"
+      className="min-w-0 rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-2 py-1 text-left transition-colors hover:border-[var(--terminal-cyan)]/60 hover:bg-[var(--terminal-panel-hi)]"
     >
       <div className="flex min-w-0 items-baseline gap-2">
         <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--terminal-muted)]">
@@ -150,7 +133,7 @@ function HotRow({
           {fmtPct(row.shortMovePct, { sign: true, digits: 1 })}
         </span>
       </div>
-      <div className="mt-0.5 truncate text-[11px] text-[var(--terminal-text-2)]">
+      <div className="mt-0.5 truncate text-[10.5px] text-[var(--terminal-text-2)]">
         {shorten(row.question, 92)}
       </div>
     </button>
@@ -158,7 +141,7 @@ function HotRow({
 }
 
 export function TerminalOverview({ onSelectId }: Props) {
-  const { workspaceMode, setWorkspaceMode, watchlist } = useTerminal();
+  const { watchlist } = useTerminal();
   const hot = useTerminalDiscovery("hot", { limit: 40 });
   const highVolume = useTerminalDiscovery("high_volume", { limit: 40 });
   const closingSoon = useTerminalDiscovery("closing_soon", { limit: 30, hours: 48 });
@@ -186,37 +169,9 @@ export function TerminalOverview({ onSelectId }: Props) {
       fkey="F0"
       title="Market Command"
       subtitle={isBusy ? "syncing live discovery" : `${allRows.length} live candidates`}
-      right={
-        <div className="hidden items-center gap-1 md:flex">
-          {MODES.map((item) => (
-            <button
-              key={item.mode}
-              type="button"
-              onClick={() => setWorkspaceMode(item.mode)}
-              className={`rounded-sm border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${
-                workspaceMode === item.mode
-                  ? "border-[var(--terminal-amber)]/60 bg-[var(--terminal-amber-soft)] text-[var(--terminal-amber)]"
-                  : "border-[var(--terminal-border)] text-[var(--terminal-muted)] hover:border-[var(--terminal-border-hi)] hover:text-[var(--terminal-text-2)]"
-              }`}
-              title={item.detail}
-            >
-              {item.label}
-            </button>
-          ))}
-          {QUICK_LANES.map((item) => (
-            <Link
-              key={item.lane}
-              href={item.href}
-              className="rounded-sm border border-[var(--terminal-border)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-[var(--terminal-text-2)] hover:border-[var(--terminal-cyan)]/60 hover:text-[var(--terminal-cyan)]"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      }
       className="shrink-0"
     >
-      <div className="grid border-b border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid border-b border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         <Metric
           label="Regime"
           value={regime.label}
@@ -254,7 +209,7 @@ export function TerminalOverview({ onSelectId }: Props) {
         />
       </div>
 
-      <div className="grid gap-2 p-2 lg:grid-cols-3">
+      <div className="hidden gap-1.5 p-1.5 lg:grid lg:grid-cols-3">
         <HotRow row={topMover} label="Fastest repricing" onSelectId={onSelectId} />
         <HotRow row={topSpike} label="Volume anomaly" onSelectId={onSelectId} />
         <HotRow row={closingRows[0] ?? null} label="Near resolution" onSelectId={onSelectId} />

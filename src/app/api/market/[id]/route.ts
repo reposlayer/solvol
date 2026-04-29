@@ -1,10 +1,12 @@
 import {
   fetchGammaMarket,
   fetchMidpoint,
+  getNoTokenFromMarket,
   fetchSpread,
   fetchYesPriceHistory,
   getYesTokenFromMarket,
 } from "@/lib/polymarket/client";
+import { detectLargestJumpPoint } from "@/lib/polymarket/market-intel";
 
 export const runtime = "nodejs";
 
@@ -29,6 +31,8 @@ export async function GET(
       fetchMidpoint(yes),
       fetchYesPriceHistory(yes),
     ]);
+    const no = getNoTokenFromMarket(market);
+    const jump = detectLargestJumpPoint(history, { minMoveCents: 0.25 });
 
     let yesPrice: number | null = null;
     let noPrice: number | null = null;
@@ -49,10 +53,15 @@ export async function GET(
     return Response.json({
       id: market.id,
       question: market.question,
+      conditionId: market.conditionId ?? null,
       slug: market.slug ?? null,
+      category: market.category ?? null,
+      yesTokenId: yes,
+      noTokenId: no,
       spread,
       midpoint,
       history,
+      jump,
       outcomePrices: market.outcomePrices,
       yesPrice,
       noPrice,

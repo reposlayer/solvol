@@ -1,8 +1,15 @@
 import type { GammaMarket, PriceHistoryPoint, PricesHistoryResponse } from "./types";
-import { yesTokenId } from "./tokens";
+import {
+  normalizeDataApiTrades,
+  normalizeOrderBook,
+  type NormalizedOrderBook,
+  type PublicMarketTrade,
+} from "./market-intel";
+import { noTokenId, yesTokenId } from "./tokens";
 
 const GAMMA_BASE = "https://gamma-api.polymarket.com";
 const CLOB_BASE = "https://clob.polymarket.com";
+const DATA_BASE = "https://data-api.polymarket.com";
 
 export async function fetchGammaMarket(marketId: string): Promise<GammaMarket> {
   const res = await fetch(`${GAMMA_BASE}/markets/${encodeURIComponent(marketId)}`, {
@@ -34,6 +41,34 @@ export async function fetchSpread(tokenId: string): Promise<number | null> {
   const data = (await res.json()) as { spread?: string };
   const s = data.spread !== undefined ? Number(data.spread) : NaN;
   return Number.isFinite(s) ? s : null;
+}
+
+export async function fetchOrderBook(tokenId: string): Promise<NormalizedOrderBook | null> {
+  const res = await fetch(
+    `${CLOB_BASE}/book?token_id=${encodeURIComponent(tokenId)}`,
+    { next: { revalidate: 15 } },
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return normalizeOrderBook(data);
+}
+
+export async function fetchMarketTrades(
+  conditionId: string | null | undefined,
+  limit = 40,
+): Promise<PublicMarketTrade[]> {
+  if (!conditionId) return [];
+  const params = new URLSearchParams({
+    market: conditionId,
+    limit: String(Math.min(Math.max(limit, 1), 100)),
+    takerOnly: "true",
+  });
+  const res = await fetch(`${DATA_BASE}/trades?${params.toString()}`, {
+    next: { revalidate: 20 },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return normalizeDataApiTrades(data);
 }
 
 async function fetchPricesHistoryRaw(params: Record<string, string>): Promise<PricesHistoryResponse> {
@@ -70,4 +105,8 @@ export async function fetchYesPriceHistory(yesTokenId: string): Promise<PriceHis
 
 export function getYesTokenFromMarket(market: GammaMarket): string | null {
   return yesTokenId(market.clobTokenIds);
+}
+
+export function getNoTokenFromMarket(market: GammaMarket): string | null {
+  return noTokenId(market.clobTokenIds);
 }

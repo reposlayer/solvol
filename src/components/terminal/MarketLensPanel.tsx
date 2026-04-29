@@ -9,6 +9,7 @@ import { fmtCents, fmtHours, fmtPct, fmtUsd, moveToneClass } from "@/lib/format"
 
 type Props = {
   marketId: string | null;
+  compact?: boolean;
 };
 
 type LadderLevel = {
@@ -117,7 +118,7 @@ function Stat({
   );
 }
 
-export function MarketLensPanel({ marketId }: Props) {
+export function MarketLensPanel({ marketId, compact = false }: Props) {
   const { loading, result, runExplainWithId, isWatched, toggleWatchlist } = useTerminal();
   const { data, isLoading, isError, error } = useMarketSnapshot(marketId ?? "540816");
 
@@ -176,10 +177,10 @@ export function MarketLensPanel({ marketId }: Props) {
           {error instanceof Error ? error.message : "Lens failed"}
         </div>
       ) : data ? (
-        <div className="p-2">
+        <div className={compact ? "p-1.5" : "p-2"}>
           <div className="rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] p-2">
             <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 text-[12px] font-semibold leading-snug text-[var(--terminal-text)]">
+              <p className={`min-w-0 font-semibold leading-snug text-[var(--terminal-text)] ${compact ? "line-clamp-2 text-[11px]" : "text-[12px]"}`}>
                 {data.question}
               </p>
               <span className={`tnum shrink-0 font-mono text-[14px] font-semibold ${moveToneClass(move)}`}>
@@ -202,32 +203,36 @@ export function MarketLensPanel({ marketId }: Props) {
             <Stat label="Data points" value={String(data.history.length)} />
           </div>
 
-          <SubLabel>Implied Ladder</SubLabel>
-          <div className="overflow-hidden rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)]">
-            <table className="tdata w-full">
-              <thead>
-                <tr>
-                  <th>Level</th>
-                  <th>YES px</th>
-                  <th>YES depth</th>
-                  <th>NO depth</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ladder.map((level) => (
-                  <tr key={`${level.label}-${level.price}`}>
-                    <td className="text-[var(--terminal-muted)]">{level.label}</td>
-                    <td className="tnum text-[var(--terminal-cyan)]">{fmtCents(level.price, 1)}</td>
-                    <td className="tnum">{fmtUsd(level.yesDepth)}</td>
-                    <td className="tnum">{fmtUsd(level.noDepth)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-1 font-mono text-[9px] text-[var(--terminal-muted)]">
-            Ladder is derived from midpoint, spread and liquidity until full CLOB depth is wired.
-          </div>
+          {compact ? null : <SubLabel>Quick Ladder</SubLabel>}
+          {compact ? null : (
+            <>
+              <div className="overflow-hidden rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)]">
+                <table className="tdata w-full">
+                  <thead>
+                    <tr>
+                      <th>Level</th>
+                      <th>YES px</th>
+                      <th>YES depth</th>
+                      <th>NO depth</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ladder.map((level) => (
+                      <tr key={`${level.label}-${level.price}`}>
+                        <td className="text-[var(--terminal-muted)]">{level.label}</td>
+                        <td className="tnum text-[var(--terminal-cyan)]">{fmtCents(level.price, 1)}</td>
+                        <td className="tnum">{fmtUsd(level.yesDepth)}</td>
+                        <td className="tnum">{fmtUsd(level.noDepth)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-1 font-mono text-[9px] text-[var(--terminal-muted)]">
+                Quick estimate from midpoint, spread and liquidity. Full public CLOB depth lives in F5.
+              </div>
+            </>
+          )}
 
           <SubLabel>Trade Read</SubLabel>
           <div className="rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] p-2">

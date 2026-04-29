@@ -7,6 +7,12 @@ export type ChartMarker = {
   t: number;
   label?: string;
   color?: string;
+  kind?: "event" | "jump";
+  price?: number;
+  note?: string;
+  windowStart?: number;
+  windowEnd?: number;
+  direction?: "YES" | "NO";
 };
 
 type Props = {
@@ -165,6 +171,20 @@ export function PriceChart({
     setHover({ x: xScale(history[idx].t), idx });
   }
 
+  function markerY(mk: ChartMarker): number {
+    if (mk.price != null && Number.isFinite(mk.price)) return yScale(mk.price);
+    let best = history[0]!;
+    let bestDist = Math.abs(best.t - mk.t);
+    for (const pt of history) {
+      const d = Math.abs(pt.t - mk.t);
+      if (d < bestDist) {
+        best = pt;
+        bestDist = d;
+      }
+    }
+    return yScale(best.p);
+  }
+
   return (
     <div
       className={`relative w-full ${className ?? ""}`}
@@ -309,32 +329,70 @@ export function PriceChart({
           </text>
         )}
 
-        {/* markers (catalyst events) */}
+        {/* markers (jump + catalyst events) */}
         {markers && ready
           ? markers.map((mk, i) => {
               if (mk.t < tMin || mk.t > tMax) return null;
               const x = xScale(mk.t);
               const c = mk.color ?? "var(--terminal-amber)";
+              const isJump = mk.kind === "jump";
+              const y = markerY(mk);
+              const bandStart =
+                mk.windowStart != null && mk.windowStart >= tMin && mk.windowStart <= tMax
+                  ? xScale(mk.windowStart)
+                  : x - 5;
+              const bandEnd =
+                mk.windowEnd != null && mk.windowEnd >= tMin && mk.windowEnd <= tMax
+                  ? xScale(mk.windowEnd)
+                  : x + 5;
+              const bandX = Math.min(bandStart, bandEnd);
+              const bandW = Math.max(2, Math.abs(bandEnd - bandStart));
               return (
                 <g key={`mk-${i}`}>
+                  {mk.note ? <title>{mk.note}</title> : null}
+                  {isJump ? (
+                    <rect
+                      x={bandX}
+                      y={PAD_T}
+                      width={bandW}
+                      height={plotH}
+                      fill={c}
+                      fillOpacity={0.1}
+                    />
+                  ) : null}
                   <line
                     x1={x}
                     x2={x}
                     y1={PAD_T}
                     y2={PAD_T + plotH}
                     stroke={c}
-                    strokeOpacity={0.55}
-                    strokeWidth={0.8}
-                    strokeDasharray="2 2"
+                    strokeOpacity={isJump ? 0.75 : 0.55}
+                    strokeWidth={isJump ? 1.4 : 0.8}
+                    strokeDasharray={isJump ? "4 2" : "2 2"}
                   />
-                  <circle cx={x} cy={PAD_T + 4} r={2.5} fill={c} />
+                  {isJump ? (
+                    <>
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r={4}
+                        fill="var(--terminal-bg)"
+                        stroke={c}
+                        strokeWidth={1.5}
+                      />
+                      <circle cx={x} cy={y} r={1.8} fill={c} />
+                    </>
+                  ) : (
+                    <circle cx={x} cy={PAD_T + 4} r={2.5} fill={c} />
+                  )}
                   {mk.label ? (
                     <text
-                      x={x + 3}
-                      y={PAD_T + 9}
+                      x={x + 4}
+                      y={isJump ? Math.max(PAD_T + 10, y - 8) : PAD_T + 9}
                       fontFamily="var(--font-mono)"
-                      fontSize={8.5}
+                      fontSize={isJump ? 9 : 8.5}
                       fill={c}
+                      fontWeight={isJump ? 700 : 400}
                     >
                       {mk.label}
                     </text>

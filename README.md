@@ -8,6 +8,9 @@ Solvol is a keyboard-first terminal for scanning prediction markets:
 
 - live discovery lanes for hot, high-volume, closing-soon, and new markets
 - market snapshot with YES/NO pricing, volume, liquidity, close time, and history
+- largest CLOB jump marker rendered directly on the YES price line
+- public CLOB order book, spread, depth imbalance, and recent Data API trade tape
+- CryptoPanic-style headline pulse matched to market terms
 - catalyst explanation workflow for "why did this move?"
 - market lens with derived microstructure and liquidity read
 - flow alerts for repricing, volume spikes, and resolution pressure
@@ -27,6 +30,9 @@ CLS hours 48
 NEW
 MKT 540816
 WHY 540816
+BOOK current
+TAPE current
+NEWS current
 WATCH 540816
 UNWATCH 540816
 WATCHLIST
@@ -44,6 +50,17 @@ npm run build
 ```
 
 The build script uses webpack mode for reliability in restricted environments.
+
+## Public Polymarket Data
+
+Solvol v1 stays read-only. It uses public Polymarket surfaces:
+
+- Gamma API for market discovery and metadata
+- CLOB API for midpoint, spread, order book, and price history
+- Data API for public market trade tape
+- RSS/news feeds for market-matched headline context
+
+No wallet, custody, or order submission is wired into this terminal.
 
 ## Vercel
 

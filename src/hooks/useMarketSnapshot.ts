@@ -1,14 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { JumpPoint } from "@/lib/polymarket/market-intel";
 
 export type MarketSnapshotPayload = {
   id: string;
   question: string;
+  conditionId: string | null;
   slug: string | null;
+  category: string | null;
+  yesTokenId: string;
+  noTokenId: string | null;
   spread: number | null;
   midpoint: number | null;
   history: { t: number; p: number }[];
+  jump: JumpPoint | null;
   yesPrice: number | null;
   noPrice: number | null;
   volume24hr: number | null;

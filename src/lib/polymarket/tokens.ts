@@ -21,3 +21,9 @@ export function yesTokenId(raw: unknown): string | null {
   const ids = parseClobTokenIds(raw);
   return ids[0] ?? null;
 }
+
+/** Index 1 = NO outcome token for standard binary markets. */
+export function noTokenId(raw: unknown): string | null {
+  const ids = parseClobTokenIds(raw);
+  return ids[1] ?? null;
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTerminal, type WorkspaceMode } from "@/components/terminal/terminal-context";
 import { DISCOVERY_DEFAULT_CLOSING_HOURS } from "@/hooks/discovery-url";
@@ -58,6 +59,8 @@ const EXAMPLES = [
   "HOT",
   "RESEARCH",
   "LEDGER",
+  "BOOK current",
+  "NEWS current",
   "MODE flow",
   "WATCH 540816",
   "RISK hours 72",
@@ -76,6 +79,22 @@ const MODE_ALIASES: Record<string, WorkspaceMode> = {
   intel: "research",
   thesis: "research",
 };
+
+const HEADER_LANES = [
+  { label: "Hot", lane: "hot", href: "/terminal?lane=hot&limit=60" },
+  { label: "Research", lane: "research_worthy", href: "/terminal?lane=research_worthy&limit=60" },
+  { label: "Ledger", lane: "catalyst_rich", href: "/terminal?lane=catalyst_rich&limit=60" },
+  { label: "Anomaly", lane: "anomaly", href: "/terminal?lane=anomaly&limit=60" },
+  { label: "Volume", lane: "high_volume", href: "/terminal?lane=high_volume&limit=60" },
+  { label: "Risk", lane: "deadline_risk", href: "/terminal?lane=deadline_risk&hours=72&limit=60" },
+  { label: "New", lane: "new", href: "/terminal?lane=new&limit=60" },
+];
+
+const MODE_BUTTONS: { label: string; mode: WorkspaceMode }[] = [
+  { label: "Mission", mode: "mission" },
+  { label: "Flow", mode: "flow" },
+  { label: "Research", mode: "research" },
+];
 
 function HeaderClock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -147,6 +166,12 @@ export function TerminalHeader() {
     router.replace(`/terminal?${sp.toString()}`, { scroll: false });
   }
 
+  function jumpToPanel(id: string) {
+    window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 80);
+  }
+
   function parseAndRun(raw: string) {
     const q = raw.trim();
     if (!q) return;
@@ -161,6 +186,7 @@ export function TerminalHeader() {
           "> HELP",
           "// HOT / RESEARCH / CATALYST / ANOMALY / RISK / VOL / CLS / NEW switch scanner lanes",
           "// MODE mission|flow|research changes workspace emphasis",
+          "// BOOK/TAPE/NEWS <id|current> jumps to CLOB depth, public prints, headlines",
           "// WATCH <id>, UNWATCH <id>, WATCHLIST, CLEAR WATCHLIST",
           "// LEDGER opens catalyst-rich research lane",
           "// MKT <id> focuses market without analysis",
@@ -169,6 +195,25 @@ export function TerminalHeader() {
           "// ` or Cmd/Ctrl+K focuses this command bar",
         ].join("\n"),
       );
+      return;
+    }
+
+    const surfaceCmd = q.match(/^(book|depth|clob|tape|trades|prints|news|headline|headlines)\s*(\d{5,}|current)?\s*$/i);
+    if (surfaceCmd?.[1]) {
+      const noun = surfaceCmd[1].toLowerCase();
+      const id = surfaceCmd[2]?.toLowerCase() === "current" || !surfaceCmd[2]
+        ? marketId
+        : surfaceCmd[2];
+      const target =
+        /^(book|depth|clob)$/.test(noun)
+          ? "clob-book"
+          : /^(tape|trades|prints)$/.test(noun)
+            ? "trade-tape"
+            : "news-pulse";
+      setMarketId(id);
+      mergeMarketIdIntoUrl(id);
+      setCommandEcho(`> ${noun} ${id}\n// Public Polymarket intel surface loaded.`);
+      jumpToPanel(target);
       return;
     }
 
@@ -343,65 +388,84 @@ export function TerminalHeader() {
   const lane = searchParams.get("lane") ?? "hot";
 
   return (
-    <header className="relative flex shrink-0 flex-col border-b border-[var(--terminal-border)] bg-gradient-to-b from-[var(--terminal-panel-2)] to-[var(--terminal-panel)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--terminal-cyan)]/40 to-transparent" />
-      <div className="flex h-12 items-center gap-3 px-3">
-        <div className="flex items-baseline gap-2">
-          <span className="aurora-text aurora-glow text-[15px] font-bold tracking-[0.24em]">
+    <header className="relative flex shrink-0 flex-col border-b border-[var(--terminal-border)] bg-[var(--terminal-panel)]">
+      <div className="flex min-h-10 items-center gap-2 px-2.5 py-1.5">
+        <div className="flex shrink-0 items-baseline gap-1.5">
+          <span className="aurora-text text-[13px] font-bold tracking-[0.22em]">
             SOLVOL
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--terminal-muted)]">
-            Aurora · v0.5
+          <span className="hidden font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--terminal-muted)] sm:inline">
+            v0.5
           </span>
         </div>
 
-        <div className="hidden items-center gap-1 lg:flex">
-          <span className="font-mono text-[9px] uppercase tracking-wide text-[var(--terminal-muted)]">
-            Lane
-          </span>
-          <span className="rounded-sm border border-[var(--terminal-cyan)]/40 bg-[var(--terminal-cyan-soft)] px-1.5 py-[1px] font-mono text-[10px] uppercase tracking-wide text-[var(--terminal-cyan)]">
-            {lane}
-          </span>
-          <span className="ml-1 font-mono text-[9px] uppercase tracking-wide text-[var(--terminal-muted)]">
-            Mode
-          </span>
-          <span className="rounded-sm border border-[var(--terminal-amber)]/40 bg-[var(--terminal-amber-soft)] px-1.5 py-[1px] font-mono text-[10px] uppercase tracking-wide text-[var(--terminal-amber)]">
-            {workspaceMode}
-          </span>
-        </div>
+        <nav className="tscroll hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:flex" aria-label="Scanner lanes">
+          {HEADER_LANES.map((item) => {
+            const active = lane === item.lane;
+            return (
+              <Link
+                key={item.lane}
+                href={item.href}
+                className={`shrink-0 rounded-sm border px-2 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
+                  active
+                    ? "border-[var(--terminal-cyan)]/60 bg-[var(--terminal-cyan-soft)] text-[var(--terminal-cyan)]"
+                    : "border-[var(--terminal-border)] text-[var(--terminal-muted)] hover:border-[var(--terminal-border-hi)] hover:text-[var(--terminal-text-2)]"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-        <form onSubmit={onSubmit} className="flex max-w-2xl flex-1 items-center gap-2">
-          <span className="shrink-0 font-mono text-[11px] text-[var(--terminal-cyan)]">⌘K</span>
+        <form onSubmit={onSubmit} className="flex min-w-[220px] max-w-xl flex-1 items-center gap-1.5 lg:flex-[0.9]">
+          <span className="hidden shrink-0 font-mono text-[10px] text-[var(--terminal-cyan)] sm:inline">
+            Cmd+K
+          </span>
           <input
             ref={cmdInputRef}
             type="text"
             value={cmd}
             onChange={(e) => setCmd(e.target.value)}
-            placeholder="Command: HOT · VOL limit 60 · CLS hours 48 · MKT 540816 · WHY 540816"
-            className="h-8 w-full rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-3 font-mono text-[12px] text-[var(--terminal-text)] placeholder:text-[var(--terminal-muted)] outline-none focus:border-[var(--terminal-cyan)] focus:ring-1 focus:ring-[var(--terminal-cyan)]/30"
+            placeholder="HOT | VOL limit 60 | MKT 540816 | WHY 540816"
+            className="h-7 w-full rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-2.5 font-mono text-[11px] text-[var(--terminal-text)] placeholder:text-[var(--terminal-muted)] outline-none focus:border-[var(--terminal-cyan)] focus:ring-1 focus:ring-[var(--terminal-cyan)]/30"
             aria-label="Terminal command"
             aria-keyshortcuts="Meta+K Control+K `"
           />
         </form>
 
-        <div className="hidden items-center gap-3 sm:flex">
+        <div className="hidden shrink-0 items-center gap-2 md:flex">
+          {MODE_BUTTONS.map((item) => (
+            <button
+              key={item.mode}
+              type="button"
+              onClick={() => setWorkspaceMode(item.mode)}
+              className={`rounded-sm border px-1.5 py-1 font-mono text-[9px] uppercase tracking-wide ${
+                workspaceMode === item.mode
+                  ? "border-[var(--terminal-amber)]/60 bg-[var(--terminal-amber-soft)] text-[var(--terminal-amber)]"
+                  : "border-[var(--terminal-border)] text-[var(--terminal-muted)] hover:border-[var(--terminal-border-hi)] hover:text-[var(--terminal-text-2)]"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
           <HeaderClock />
-          <div className="font-mono text-[10px] text-[var(--terminal-muted)]">
+          <div className="font-mono text-[9px] text-[var(--terminal-muted)]">
             WL <span className="tnum text-[var(--terminal-text-2)]">{watchlist.length}</span>
           </div>
-          <div className="flex items-center gap-1 font-mono text-[10px]">
+          <div className="flex items-center gap-1 font-mono text-[9px]">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--terminal-up)] animate-pulse-slow" />
             <span className="text-[var(--terminal-muted)]">PM-GAMMA</span>
           </div>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[var(--terminal-border)]/60 bg-[var(--terminal-panel-2)]/40 px-3 py-1 font-mono text-[10px] text-[var(--terminal-muted)]">
-        <span className="text-[var(--terminal-muted)]">try:</span>
+      <div className="tscroll flex min-h-7 items-center gap-1 overflow-x-auto border-t border-[var(--terminal-border)]/70 bg-[var(--terminal-panel-2)]/55 px-2.5 py-1 font-mono text-[10px] text-[var(--terminal-muted)]">
+        <span className="shrink-0 text-[var(--terminal-muted)]">quick</span>
         {EXAMPLES.map((ex) => (
           <button
             key={ex}
             type="button"
-            className="rounded-sm border border-[var(--terminal-border)]/60 px-1.5 py-[1px] text-left text-[var(--terminal-text-2)] hover:border-[var(--terminal-cyan)]/60 hover:text-[var(--terminal-cyan)]"
+            className="shrink-0 rounded-sm border border-[var(--terminal-border)]/70 px-1.5 py-[1px] text-left text-[var(--terminal-text-2)] hover:border-[var(--terminal-cyan)]/60 hover:text-[var(--terminal-cyan)]"
             onClick={() => {
               setCmd(ex);
               parseAndRun(ex);
@@ -410,8 +474,8 @@ export function TerminalHeader() {
             {ex}
           </button>
         ))}
-        <span className="ml-auto shrink-0 text-[9px] opacity-80">
-          ` / ⌘K / Ctrl+K — focus command
+        <span className="ml-auto hidden shrink-0 text-[9px] opacity-80 sm:inline">
+          ` / Cmd+K / Ctrl+K
         </span>
       </div>
     </header>

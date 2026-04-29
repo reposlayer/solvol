@@ -2,8 +2,10 @@
 export type GammaMarket = {
   id: string;
   question: string;
+  conditionId?: string;
   slug?: string;
   description?: string;
+  category?: string;
   outcomes?: string;
   outcomePrices?: string;
   volume?: string;
@@ -19,6 +21,8 @@ export type GammaMarket = {
   createdAt?: string;
   featured?: boolean;
   competitive?: number;
+  eventId?: number;
+  icon?: string;
 };
 
 export type PriceHistoryPoint = {

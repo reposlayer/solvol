@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
 import { PanelFrame } from "@/components/terminal/PanelFrame";
 import { PriceChart, type ChartMarker } from "@/components/terminal/PriceChart";
 import { useMarketSnapshot } from "@/hooks/useMarketSnapshot";
@@ -11,6 +10,7 @@ import {
   fmtDateTime,
   fmtHours,
   fmtPct,
+  fmtTime,
   fmtUsd,
   moveToneClass,
 } from "@/lib/format";
@@ -50,27 +50,50 @@ function Stat({
   );
 }
 
-export function MarketSnapshotStrip({ marketId }: { marketId: string }) {
+export function MarketSnapshotStrip({
+  marketId,
+  compact = false,
+}: {
+  marketId: string;
+  compact?: boolean;
+}) {
   const { data, error, isLoading, isError } = useMarketSnapshot(marketId);
   const { result, runExplainWithId, loading } = useTerminal();
 
-  const markers: ChartMarker[] = useMemo(() => {
-    if (!result || result.marketId !== marketId) return [];
-    return result.likelyCatalysts.slice(0, 3).map((c, i) => {
-      const t = Date.parse(c.timestamp);
-      if (!Number.isFinite(t)) return null;
-      return {
+  const markers: ChartMarker[] = [];
+  if (data?.jump) {
+    const jumpTone =
+      data.jump.direction === "YES" ? "var(--terminal-up)" : "var(--terminal-down)";
+    markers.push({
+      t: data.jump.t,
+      windowStart: data.jump.windowStart,
+      windowEnd: data.jump.windowEnd,
+      price: data.jump.priceAfter,
+      label: `${data.jump.moveCents >= 0 ? "+" : ""}${data.jump.moveCents.toFixed(1)}¢`,
+      note: `Largest CLOB step: ${fmtCents(data.jump.priceBefore, 1)} → ${fmtCents(data.jump.priceAfter, 1)}`,
+      color: jumpTone,
+      kind: "jump",
+      direction: data.jump.direction,
+    });
+  }
+  if (result && result.marketId === marketId) {
+    for (const [i, catalyst] of result.likelyCatalysts.slice(0, 3).entries()) {
+      const t = Date.parse(catalyst.timestamp);
+      if (!Number.isFinite(t)) continue;
+      markers.push({
         t: Math.floor(t / 1000),
         label: i === 0 ? "★" : "•",
         color:
-          c.direction === "YES"
+          catalyst.direction === "YES"
             ? "var(--terminal-up)"
-            : c.direction === "NO"
+            : catalyst.direction === "NO"
               ? "var(--terminal-down)"
               : "var(--terminal-amber)",
-      } as ChartMarker;
-    }).filter((m): m is ChartMarker => m !== null);
-  }, [result, marketId]);
+        kind: "event",
+        note: catalyst.title,
+      });
+    }
+  }
 
   if (isError && error) {
     return (
@@ -100,6 +123,7 @@ export function MarketSnapshotStrip({ marketId }: { marketId: string }) {
       fkey="F2"
       title="Market"
       subtitle={`#${data.id}`}
+      className="overflow-hidden"
       right={
         <>
           {result && result.marketId === data.id ? null : (
@@ -127,13 +151,13 @@ export function MarketSnapshotStrip({ marketId }: { marketId: string }) {
         </>
       }
     >
-      <div className="px-3 py-2">
-        <h3 className="text-[13px] font-semibold leading-snug text-[var(--terminal-text)]">
+      <div className={compact ? "px-2.5 py-1.5" : "px-3 py-2"}>
+        <h3 className={`font-semibold leading-snug text-[var(--terminal-text)] ${compact ? "line-clamp-2 text-[12px]" : "text-[13px]"}`}>
           {data.question}
         </h3>
       </div>
 
-      <div className="grid grid-cols-2 divide-x divide-y divide-[var(--terminal-border)] border-y border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] sm:grid-cols-4 lg:grid-cols-7 lg:divide-y-0">
+      <div className="grid grid-cols-2 divide-x divide-y divide-[var(--terminal-border)] border-y border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] sm:grid-cols-4 xl:grid-cols-8 xl:divide-y-0">
         <Stat
           label="YES mid"
           value={fmtCents(yes, 1)}
@@ -163,17 +187,27 @@ export function MarketSnapshotStrip({ marketId }: { marketId: string }) {
           sub={data.endDate ? fmtDateTime(data.endDate) : null}
         />
         <Stat
+          label="Jump"
+          value={
+            data.jump
+              ? `${data.jump.moveCents >= 0 ? "+" : ""}${data.jump.moveCents.toFixed(1)}¢`
+              : "—"
+          }
+          tone={data.jump ? moveToneClass(data.jump.movePercent) : undefined}
+          sub={data.jump ? fmtTime(data.jump.t) : "largest step"}
+        />
+        <Stat
           label="Points"
           value={data.history.length}
-          sub={data.history.length >= 2 ? "CLOB series" : "sparse"}
+          sub={data.yesTokenId ? `YES ${data.yesTokenId.slice(0, 6)}…` : "CLOB series"}
         />
       </div>
 
-      <div className="px-2 pb-2 pt-2">
+      <div className="min-h-0 px-1.5 pb-1.5 pt-1.5">
         <PriceChart
           history={data.history}
           showNo
-          height={220}
+          height={compact ? 178 : 220}
           markers={markers}
         />
       </div>

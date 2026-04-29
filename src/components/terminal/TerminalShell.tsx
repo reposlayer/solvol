@@ -3,10 +3,8 @@
 import { Suspense } from "react";
 import { TerminalHeader } from "@/components/terminal/TerminalHeader";
 import { TerminalUrlSync } from "@/components/terminal/TerminalUrlSync";
-import { TerminalNav } from "@/components/terminal/TerminalNav";
 import { TerminalTape } from "@/components/terminal/TerminalTape";
 import { WhyMoveWorkspace } from "@/components/terminal/WhyMoveWorkspace";
-import { IntelligenceRail } from "@/components/terminal/IntelligenceRail";
 import { TerminalStatusBar } from "@/components/terminal/TerminalStatusBar";
 import { useTerminal } from "@/components/terminal/terminal-context";
 
@@ -38,19 +36,9 @@ export function TerminalShell() {
       <Suspense fallback={null}>
         <TerminalHeader />
       </Suspense>
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="hidden shrink-0 lg:block">
-          <Suspense fallback={<div className="w-[210px] shrink-0 border-r border-[var(--terminal-border)] bg-[var(--terminal-panel)]" />}>
-            <TerminalNav />
-          </Suspense>
-        </div>
-        <main className="flex min-w-0 flex-1 flex-col bg-[var(--terminal-bg)]">
-          <WhyMoveWorkspace />
-        </main>
-        <div className="hidden shrink-0 xl:flex">
-          <IntelligenceRail />
-        </div>
-      </div>
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--terminal-bg)]">
+        <WhyMoveWorkspace />
+      </main>
       <CommandEchoStrip />
       <TerminalStatusBar />
       <TerminalTape />
