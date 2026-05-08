@@ -130,7 +130,7 @@ export function OpportunityRadar({ onSelectId }: Props) {
   const cards = uniqueRows(hot.data ?? [], highVolume.data ?? [], closing.data ?? [], newest.data ?? [])
     .map(cardFor)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+    .slice(0, 4);
   const loading = hot.isLoading || highVolume.isLoading || closing.isLoading || newest.isLoading;
 
   return (

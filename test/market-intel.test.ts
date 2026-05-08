@@ -1,11 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  detectLargestJumpPoint,
-  normalizeDataApiTrades,
-  normalizeOrderBook,
-  summarizeOrderBook,
-} from "../src/lib/polymarket/market-intel";
+import { detectLargestJumpPoint, normalizeDataApiTrades, normalizeOrderBook, summarizeOrderBook } from "../src/lib/polymarket/market-intel.ts";
 
 test("summarizeOrderBook reads best bid, ask, spread and top-level imbalance", () => {
   const book = normalizeOrderBook({

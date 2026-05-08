@@ -1,12 +1,13 @@
-"use client";
-
+import { Suspense } from "react";
 import { TerminalProvider } from "@/components/terminal/terminal-context";
 import { TerminalShell } from "@/components/terminal/TerminalShell";
 
 export default function TerminalPage() {
   return (
-    <TerminalProvider>
-      <TerminalShell />
-    </TerminalProvider>
+    <Suspense fallback={null}>
+      <TerminalProvider>
+        <TerminalShell />
+      </TerminalProvider>
+    </Suspense>
   );
 }

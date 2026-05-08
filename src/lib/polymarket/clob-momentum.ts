@@ -1,6 +1,6 @@
 import type { PricesHistoryResponse } from "./types";
-
-const CLOB_BASE = "https://clob.polymarket.com";
+import { TERMINAL_REFRESH } from "@/hooks/terminal-refresh";
+import { buildPublicPolymarketUrl } from "./public-api";
 
 /** Last step move % on YES implied probability (coarse CLOB series). */
 export async function fetchYesShortMomentumPct(yesTokenId: string): Promise<number | null> {
@@ -9,8 +9,8 @@ export async function fetchYesShortMomentumPct(yesTokenId: string): Promise<numb
     interval: "max",
     fidelity: "720",
   });
-  const res = await fetch(`${CLOB_BASE}/prices-history?${params.toString()}`, {
-    next: { revalidate: 60 },
+  const res = await fetch(buildPublicPolymarketUrl("clob", "/prices-history", params), {
+    next: { revalidate: TERMINAL_REFRESH.discovery.serverRevalidateSeconds },
   });
   const data = (await res.json()) as PricesHistoryResponse;
   if (data.error) return null;

@@ -1,4 +1,10 @@
 {
   "buildCommand": "npm run build",
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "crons": [
+    {
+      "path": "/api/internal/ingest",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }

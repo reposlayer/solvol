@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import type { DiscoveryLane, DiscoveryMarketRow } from "@/lib/polymarket/discovery";
+import { isDiscoveryLane, type DiscoveryLane, type DiscoveryMarketRow } from "@/lib/polymarket/discovery";
 import {
   DISCOVERY_DEFAULT_CLOSING_HOURS,
   DISCOVERY_DEFAULT_LIMIT,
   parseClosingHoursFromSearch,
   parseDiscoveryLimitFromSearch,
+  parseDiscoveryOffsetFromSearch,
   parseTagIdFromSearch,
 } from "@/hooks/discovery-url";
 import { useInvalidateDiscovery, useTerminalDiscovery } from "@/hooks/useTerminalDiscovery";
@@ -26,6 +27,7 @@ import {
 } from "@/lib/format";
 
 const LANE_LABEL: Record<DiscoveryLane, string> = {
+  all_markets: "Browse all",
   hot: "Hot · composite",
   high_volume: "High volume",
   closing_soon: "Closing soon",
@@ -37,6 +39,7 @@ const LANE_LABEL: Record<DiscoveryLane, string> = {
 };
 
 const LANE_ORDER: DiscoveryLane[] = [
+  "all_markets",
   "hot",
   "research_worthy",
   "catalyst_rich",
@@ -50,6 +53,7 @@ const LANE_ORDER: DiscoveryLane[] = [
 function laneHref(lane: DiscoveryLane, sp: URLSearchParams): string {
   const next = new URLSearchParams(sp.toString());
   next.set("lane", lane);
+  next.delete("offset");
   return `/terminal?${next.toString()}`;
 }
 
@@ -59,22 +63,14 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
   const searchParams = useSearchParams();
   const { isWatched, toggleWatchlist } = useTerminal();
   const laneParam = searchParams.get("lane");
-  const lane: DiscoveryLane =
-    laneParam === "high_volume" ||
-    laneParam === "closing_soon" ||
-    laneParam === "new" ||
-    laneParam === "hot" ||
-    laneParam === "research_worthy" ||
-    laneParam === "deadline_risk" ||
-    laneParam === "anomaly" ||
-    laneParam === "catalyst_rich"
-      ? laneParam
-      : "hot";
+  const lane: DiscoveryLane = isDiscoveryLane(laneParam) ? laneParam : "hot";
 
   const limit = parseDiscoveryLimitFromSearch(searchParams.get("limit"));
+  const offset = parseDiscoveryOffsetFromSearch(searchParams.get("offset"));
+  const query = searchParams.get("q")?.trim() ?? "";
   const tagId = parseTagIdFromSearch(searchParams.get("tag_id"));
   const hours = parseClosingHoursFromSearch(searchParams.get("hours"));
-  const discoveryOpts = { limit, tagId, hours };
+  const discoveryOpts = { limit, tagId, hours, offset, query };
 
   const { data: rows = [], isLoading, isError, error, dataUpdatedAt } =
     useTerminalDiscovery(lane, discoveryOpts);
@@ -92,8 +88,11 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
         return sortDir === "asc" ? an - bn : bn - an;
       })
     : rows;
+  const visibleRows = sorted.slice(0, view === "table" ? 10 : sorted.length);
 
   const breadCrumbs: string[] = [];
+  if (query) breadCrumbs.push(`search ${query}`);
+  if (offset > 0) breadCrumbs.push(`offset ${offset}`);
   if (tagId) breadCrumbs.push(`tag ${tagId}`);
   if (limit !== DISCOVERY_DEFAULT_LIMIT) breadCrumbs.push(`limit ${limit}`);
   if (hours !== DISCOVERY_DEFAULT_CLOSING_HOURS) breadCrumbs.push(`${hours}h`);
@@ -135,14 +134,9 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
     <PanelFrame
       fkey="F1"
       title="Scanner"
-      subtitle={`${rows.length} rows${breadCrumbs.length ? ` · ${breadCrumbs.join(" · ")}` : ""}`}
+      subtitle={`${visibleRows.length}/${rows.length} rows${breadCrumbs.length ? ` · ${breadCrumbs.join(" · ")}` : ""}`}
       right={
         <>
-          <div className="tscroll flex max-w-full gap-1 overflow-x-auto">
-            {LANE_ORDER.map((l) => (
-              <HeaderTab key={l} k={l} />
-            ))}
-          </div>
           <span className="font-mono text-[9px] text-[var(--terminal-muted)]">
             upd {updatedTxt}
           </span>
@@ -180,14 +174,18 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
           </button>
         </>
       }
-      scroll
     >
+      <div className="grid grid-cols-2 gap-1 border-b border-[var(--terminal-border)] bg-[var(--terminal-bg-2)]/70 p-1.5 min-[520px]:grid-cols-4 lg:grid-cols-2 2xl:grid-cols-4">
+        {LANE_ORDER.map((l) => (
+          <HeaderTab key={l} k={l} />
+        ))}
+      </div>
       {isLoading ? (
         <div className="px-3 py-8 font-mono text-[11px] text-[var(--terminal-muted)]">
           <span className="animate-blink">▍</span> Loading Gamma…
         </div>
       ) : isError ? (
-        <div className="px-3 py-4 font-mono text-[11px] text-red-300">
+        <div className="px-3 py-4 font-mono text-[11px] text-[var(--terminal-text-2)]">
           {error instanceof Error ? error.message : "Failed"}
         </div>
       ) : view === "heatmap" ? (
@@ -202,7 +200,7 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
             <SortButton label="Vol" k="volume24hr" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
           </div>
           <div className="divide-y divide-[var(--terminal-border)]/70">
-            {sorted.map((r: DiscoveryMarketRow) => {
+            {visibleRows.map((r: DiscoveryMarketRow) => {
               const watched = isWatched(r.id);
               return (
                 <div
@@ -211,7 +209,7 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
                   tabIndex={0}
                   onClick={() => onSelectId(r.id)}
                   onKeyDown={(event) => activateRow(event, () => onSelectId(r.id))}
-                  className="grid cursor-pointer grid-cols-[24px_minmax(0,1fr)_48px_58px_58px] gap-2 px-2 py-1.5 text-left transition-colors hover:bg-[var(--terminal-panel-hi)] focus:bg-[var(--terminal-panel-hi)] focus:outline-none"
+                  className="grid cursor-pointer grid-cols-[24px_minmax(0,1fr)_48px_58px_58px] gap-2 px-2 py-2 text-left transition-colors hover:bg-[var(--terminal-panel-hi)] focus:bg-[var(--terminal-panel-hi)] focus:outline-none"
                 >
                   <button
                     type="button"
@@ -243,6 +241,9 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
                       <span className="tnum shrink-0">spike {fmtMult(r.volumeSpikeRatio)}</span>
                       <span className="tnum shrink-0">liq {fmtUsd(r.liquidityNum)}</span>
                       <span className="tnum shrink-0">close {fmtHours(r.hoursToClose ?? null)}</span>
+                      {r.sourceDensity ? (
+                        <span className="tnum shrink-0 text-[var(--terminal-cyan)]">src {r.sourceDensity}</span>
+                      ) : null}
                       <span className="tnum truncate text-[var(--terminal-amber)]">
                         score {r.terminalScore != null ? r.terminalScore.toFixed(1) : "-"}
                       </span>
@@ -261,6 +262,11 @@ export function DiscoveryScanner({ onSelectId }: { onSelectId: (id: string) => v
               );
             })}
           </div>
+          {sorted.length > visibleRows.length ? (
+            <div className="border-t border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-2 py-1 font-mono text-[9px] uppercase tracking-wide text-[var(--terminal-muted)]">
+              Showing best {visibleRows.length}; use lane/filter/limit for deeper scan.
+            </div>
+          ) : null}
         </div>
       )}
     </PanelFrame>

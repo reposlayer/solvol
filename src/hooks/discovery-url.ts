@@ -1,6 +1,6 @@
 /** Shared URL modifiers for `/terminal` and `/api/discovery`. */
 
-export const DISCOVERY_DEFAULT_LIMIT = 40;
+export const DISCOVERY_DEFAULT_LIMIT = 80;
 
 /** Default horizon for `closing_soon` (Gamma / API match). */
 export const DISCOVERY_DEFAULT_CLOSING_HOURS = 168;
@@ -10,6 +10,13 @@ export function parseDiscoveryLimitFromSearch(raw: string | null): number {
   const n = Number.parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 1) return DISCOVERY_DEFAULT_LIMIT;
   return Math.min(n, 80);
+}
+
+export function parseDiscoveryOffsetFromSearch(raw: string | null): number {
+  if (raw == null || raw === "") return 0;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, 10_000);
 }
 
 export function parseClosingHoursFromSearch(raw: string | null): number {

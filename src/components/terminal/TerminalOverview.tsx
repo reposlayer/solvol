@@ -3,7 +3,6 @@
 import { useMemo, type ReactNode } from "react";
 import type { DiscoveryMarketRow } from "@/lib/polymarket/discovery";
 import { useTerminalDiscovery } from "@/hooks/useTerminalDiscovery";
-import { PanelFrame } from "@/components/terminal/PanelFrame";
 import { useTerminal } from "@/components/terminal/terminal-context";
 import { fmtCents, fmtHours, fmtPct, fmtUsd, moveToneClass, shorten } from "@/lib/format";
 
@@ -83,7 +82,7 @@ function Metric({
   tone?: string;
 }) {
   return (
-    <div className="min-w-0 border-r border-[var(--terminal-border)] px-2 py-1.5 last:border-r-0">
+    <div className="min-w-0 border-l border-[var(--terminal-border)] px-2 py-1 first:border-l-0">
       <div className="font-mono text-[8.5px] uppercase tracking-[0.14em] text-[var(--terminal-muted)]">
         {label}
       </div>
@@ -96,47 +95,6 @@ function Metric({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function HotRow({
-  row,
-  label,
-  onSelectId,
-}: {
-  row: DiscoveryMarketRow | null;
-  label: string;
-  onSelectId: (id: string) => void;
-}) {
-  if (!row) {
-    return (
-      <div className="rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-2 py-1.5 font-mono text-[10px] text-[var(--terminal-muted)]">
-        {label}: waiting for feed
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSelectId(row.id)}
-      className="min-w-0 rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-2 py-1 text-left transition-colors hover:border-[var(--terminal-cyan)]/60 hover:bg-[var(--terminal-panel-hi)]"
-    >
-      <div className="flex min-w-0 items-baseline gap-2">
-        <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--terminal-muted)]">
-          {label}
-        </span>
-        <span className="tnum shrink-0 font-mono text-[10px] text-[var(--terminal-cyan)]">
-          #{row.id}
-        </span>
-        <span className={`tnum ml-auto shrink-0 font-mono text-[10px] font-semibold ${moveToneClass(row.shortMovePct)}`}>
-          {fmtPct(row.shortMovePct, { sign: true, digits: 1 })}
-        </span>
-      </div>
-      <div className="mt-0.5 truncate text-[10.5px] text-[var(--terminal-text-2)]">
-        {shorten(row.question, 92)}
-      </div>
-    </button>
   );
 }
 
@@ -163,23 +121,39 @@ export function TerminalOverview({ onSelectId }: Props) {
   const closingUnderDay = closingRows.filter((row) => (row.hoursToClose ?? Infinity) <= 24).length;
   const regime = regimeLabel(allRows);
   const isBusy = hot.isLoading || highVolume.isLoading || closingSoon.isLoading || newest.isLoading;
+  const lead = topMover ?? topSpike ?? closingRows[0] ?? null;
 
   return (
-    <PanelFrame
-      fkey="F0"
-      title="Market Command"
-      subtitle={isBusy ? "syncing live discovery" : `${allRows.length} live candidates`}
-      className="shrink-0"
-    >
-      <div className="grid border-b border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+    <div className="grid shrink-0 overflow-hidden border-y border-[var(--terminal-border)] bg-[var(--terminal-panel)] min-[560px]:grid-cols-[minmax(170px,1.35fr)_repeat(4,minmax(70px,0.66fr))] xl:grid-cols-[minmax(240px,1.45fr)_repeat(5,minmax(86px,0.72fr))]">
+      <button
+        type="button"
+        disabled={!lead}
+        onClick={() => lead ? onSelectId(lead.id) : undefined}
+        className="min-w-0 px-2 py-1 text-left disabled:cursor-default"
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="fkey">F0</span>
+          <span className={`font-mono text-[11px] font-semibold uppercase tracking-wide ${regime.tone}`}>
+            {regime.label}
+          </span>
+          <span className="truncate font-mono text-[9px] text-[var(--terminal-muted)]">
+            {isBusy ? "syncing" : `${allRows.length} candidates`}
+          </span>
+        </div>
+        <div className="mt-0.5 flex min-w-0 items-center gap-2">
+          <span className="truncate text-[10.5px] text-[var(--terminal-text-2)]">
+            {lead ? shorten(lead.question, 92) : regime.detail}
+          </span>
+          {lead ? (
+            <span className={`tnum ml-auto shrink-0 font-mono text-[10px] font-semibold ${moveToneClass(lead.shortMovePct)}`}>
+              {fmtPct(lead.shortMovePct, { sign: true, digits: 1 })}
+            </span>
+          ) : null}
+        </div>
+      </button>
+      <div className="grid grid-cols-2 border-t border-[var(--terminal-border)] min-[560px]:col-span-4 min-[560px]:grid-cols-4 min-[560px]:border-t-0 xl:col-span-5 xl:grid-cols-5">
         <Metric
-          label="Regime"
-          value={regime.label}
-          tone={regime.tone}
-          sub={regime.detail}
-        />
-        <Metric
-          label="Top 24h volume"
+          label="24h vol"
           value={fmtUsd(totalVolume)}
           sub={`${volumeRows.length || "—"} markets sampled`}
         />
@@ -208,12 +182,6 @@ export function TerminalOverview({ onSelectId }: Props) {
           sub={watchlist.slice(0, 3).map((id) => `#${id}`).join(" · ") || "no pins"}
         />
       </div>
-
-      <div className="hidden gap-1.5 p-1.5 lg:grid lg:grid-cols-3">
-        <HotRow row={topMover} label="Fastest repricing" onSelectId={onSelectId} />
-        <HotRow row={topSpike} label="Volume anomaly" onSelectId={onSelectId} />
-        <HotRow row={closingRows[0] ?? null} label="Near resolution" onSelectId={onSelectId} />
-      </div>
-    </PanelFrame>
+    </div>
   );
 }

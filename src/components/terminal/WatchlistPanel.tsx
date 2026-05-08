@@ -93,7 +93,7 @@ export function WatchlistPanel({ onSelectId }: Props) {
     >
       {watchlist.length ? (
         <div className="grid gap-1.5 p-2">
-          {watchlist.slice(0, 10).map((id) => (
+          {watchlist.slice(0, 5).map((id) => (
             <WatchRow key={id} id={id} onSelectId={onSelectId} />
           ))}
         </div>

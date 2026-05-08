@@ -3,8 +3,8 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Solvol — Aurora Terminal",
-  description: "Prediction market terminal — odds, flow, and catalyst intelligence, in solar aurora.",
+  title: "Solvol Terminal",
+  description: "Read-only prediction-market intelligence terminal for odds, flow, catalysts, alerts, and source status.",
 };
 
 export default function RootLayout({

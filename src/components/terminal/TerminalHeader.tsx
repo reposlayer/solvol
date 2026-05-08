@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTerminal, type WorkspaceMode } from "@/components/terminal/terminal-context";
 import { DISCOVERY_DEFAULT_CLOSING_HOURS } from "@/hooks/discovery-url";
+import { TERMINAL_REFRESH } from "@/hooks/terminal-refresh";
 
 function parseCmdModifiers(q: string): {
   limit?: number;
@@ -55,16 +56,14 @@ function modSuffix(mods: {
   return parts.length ? `\n// ${parts.join(" · ")}` : "";
 }
 
-const EXAMPLES = [
+const BASE_EXAMPLES = [
   "HOT",
   "RESEARCH",
   "LEDGER",
   "BOOK current",
   "NEWS current",
   "MODE flow",
-  "WATCH 540816",
   "RISK hours 72",
-  "WHY 540816",
   "HELP",
 ];
 
@@ -126,6 +125,8 @@ export function TerminalHeader() {
     setMarketId,
     workspaceMode,
     setWorkspaceMode,
+    themeMode,
+    toggleThemeMode,
     watchlist,
     addToWatchlist,
     removeFromWatchlist,
@@ -136,6 +137,12 @@ export function TerminalHeader() {
   } = useTerminal();
   const [cmd, setCmd] = useState("");
   const cmdInputRef = useRef<HTMLInputElement>(null);
+  const quickExamples = [
+    ...BASE_EXAMPLES.slice(0, 6),
+    `WATCH ${marketId}`,
+    ...BASE_EXAMPLES.slice(6),
+    `WHY ${marketId}`,
+  ];
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -167,6 +174,13 @@ export function TerminalHeader() {
   }
 
   function jumpToPanel(id: string) {
+    if (id === "clob-book" || id === "trade-tape" || id === "news-pulse") {
+      window.dispatchEvent(
+        new CustomEvent("solvol:signal-step", {
+          detail: { step: "evidence", target: id },
+        }),
+      );
+    }
     window.setTimeout(() => {
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }, 80);
@@ -427,12 +441,21 @@ export function TerminalHeader() {
             type="text"
             value={cmd}
             onChange={(e) => setCmd(e.target.value)}
-            placeholder="HOT | VOL limit 60 | MKT 540816 | WHY 540816"
+            placeholder={`HOT | VOL limit 60 | MKT ${marketId} | WHY ${marketId}`}
             className="h-7 w-full rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-2.5 font-mono text-[11px] text-[var(--terminal-text)] placeholder:text-[var(--terminal-muted)] outline-none focus:border-[var(--terminal-cyan)] focus:ring-1 focus:ring-[var(--terminal-cyan)]/30"
             aria-label="Terminal command"
             aria-keyshortcuts="Meta+K Control+K `"
           />
         </form>
+
+        <button
+          type="button"
+          onClick={toggleThemeMode}
+          className="terminal-theme-toggle"
+          aria-label={`Switch to ${themeMode === "dark" ? "light" : "dark"} mode`}
+        >
+          {themeMode === "dark" ? "Light" : "Dark"}
+        </button>
 
         <div className="hidden shrink-0 items-center gap-2 md:flex">
           {MODE_BUTTONS.map((item) => (
@@ -459,9 +482,16 @@ export function TerminalHeader() {
           </div>
         </div>
       </div>
-      <div className="tscroll flex min-h-7 items-center gap-1 overflow-x-auto border-t border-[var(--terminal-border)]/70 bg-[var(--terminal-panel-2)]/55 px-2.5 py-1 font-mono text-[10px] text-[var(--terminal-muted)]">
+      <div className="terminal-live-ribbon tscroll">
+        <span className="terminal-live-pill is-live">LIVE</span>
+        <span className="terminal-live-source">CLOB {TERMINAL_REFRESH.intel.orderBookRevalidateSeconds}s</span>
+        <span className="terminal-live-source">Trades {TERMINAL_REFRESH.intel.tradesRevalidateSeconds}s</span>
+        <span className="terminal-live-source">Focus {Math.round(TERMINAL_REFRESH.snapshot.refetchIntervalMs / 1000)}s</span>
+        <span className="terminal-live-source">Discovery {Math.round(TERMINAL_REFRESH.discovery.refetchIntervalMs / 1000)}s</span>
+        <span className="terminal-live-source is-slow">Sources {Math.round(TERMINAL_REFRESH.feed.refetchIntervalMs / 1000)}s</span>
+        <span className="terminal-live-divider" />
         <span className="shrink-0 text-[var(--terminal-muted)]">quick</span>
-        {EXAMPLES.map((ex) => (
+        {quickExamples.map((ex) => (
           <button
             key={ex}
             type="button"

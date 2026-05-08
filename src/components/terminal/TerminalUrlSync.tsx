@@ -11,7 +11,7 @@ function marketIdFromRoute(
 ): string | null {
   const fromQuery = searchParams.get("marketId");
   if (fromQuery && /^\d+$/.test(fromQuery.trim())) return fromQuery.trim();
-  if (pathname?.startsWith("/market/")) {
+  if (pathname?.startsWith("/market/") || pathname?.startsWith("/terminal/market/")) {
     const p = params.id;
     const id = typeof p === "string" ? p : Array.isArray(p) ? p[0] : null;
     if (id && /^\d+$/.test(id)) return id;

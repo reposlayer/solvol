@@ -31,6 +31,12 @@ function SmallStat({ label, value }: { label: string; value: string | number }) 
   );
 }
 
+function sourceLedgerMeta(evidence: string[]): string | null {
+  const line = evidence.find((item) => /\b(fresh|stored)\b/i.test(item));
+  if (!line) return null;
+  return line.replace(/\.$/, "");
+}
+
 export function ResearchDeskPanel({ marketId }: Props) {
   const { watchlist, commandHistory, result } = useTerminal();
   const session = useResearchSession();
@@ -183,7 +189,7 @@ export function ResearchDeskPanel({ marketId }: Props) {
             >
               <div className="flex items-baseline gap-2">
                 <span className="font-mono text-[9px] uppercase tracking-wide text-[var(--terminal-muted)]">
-                  {entry.sourceType}
+                  {entry.sourceType.replace(/_/g, " ")}
                 </span>
                 <span className="tnum ml-auto font-mono text-[10px] text-[var(--terminal-amber)]">
                   {entry.confidence}%
@@ -192,6 +198,11 @@ export function ResearchDeskPanel({ marketId }: Props) {
               <div className="mt-0.5 truncate text-[11px] text-[var(--terminal-text)]">
                 {entry.title}
               </div>
+              {sourceLedgerMeta(entry.evidence) ? (
+                <div className="mt-1 truncate font-mono text-[9px] uppercase tracking-wide text-[var(--terminal-cyan)]">
+                  {sourceLedgerMeta(entry.evidence)}
+                </div>
+              ) : null}
             </a>
           ))}
           {!latestLedger.length ? (

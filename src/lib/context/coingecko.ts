@@ -1,8 +1,10 @@
 import type { CryptoWindowStats } from "@/lib/domain/types";
+import type { SourceDocument } from "@/lib/domain/types";
+import { sourceReliability } from "@/lib/context/source-documents";
 
 const COINGECKO = "https://api.coingecko.com/api/v3";
 
-const SYMBOL_MAP: Record<string, string> = {
+export const COINGECKO_SYMBOL_MAP: Record<string, string> = {
   BTC: "bitcoin",
   ETH: "ethereum",
   SOL: "solana",
@@ -15,7 +17,7 @@ export async function fetchCryptoWindowChange(
   windowStartSec: number,
   windowEndSec: number,
 ): Promise<CryptoWindowStats | null> {
-  const id = SYMBOL_MAP[ticker.toUpperCase()];
+  const id = COINGECKO_SYMBOL_MAP[ticker.toUpperCase()];
   if (!id) return null;
 
   const from = Math.floor(windowStartSec);
@@ -42,4 +44,63 @@ export async function fetchCryptoWindowChange(
     priceEndUsd: end,
     changePercent,
   };
+}
+
+export function cryptoTickersForTerms(terms: string[]): string[] {
+  const hay = terms.join(" ").toLowerCase();
+  return Object.keys(COINGECKO_SYMBOL_MAP).filter((symbol) => {
+    const id = COINGECKO_SYMBOL_MAP[symbol]!;
+    return hay.includes(symbol.toLowerCase()) || hay.includes(id);
+  });
+}
+
+export function sourceDocumentFromCryptoStats(
+  stats: CryptoWindowStats,
+  windowStartIso: string,
+  windowEndIso: string,
+  matchedTerms: string[],
+): SourceDocument {
+  return {
+    provider: "coingecko",
+    externalId: `${stats.assetId}:${windowStartIso}:${windowEndIso}`,
+    title: `${stats.symbol} spot move (${stats.changePercent >= 0 ? "+" : ""}${stats.changePercent.toFixed(2)}%)`,
+    url: `https://www.coingecko.com/en/coins/${encodeURIComponent(stats.assetId)}`,
+    publishedAt: windowEndIso,
+    retrievedAt: new Date().toISOString(),
+    summary: `${stats.symbol} moved ${stats.changePercent.toFixed(2)}% over the sampled window.`,
+    category: "price_feed",
+    matchedTerms,
+    reliability: sourceReliability("coingecko"),
+    metadata: {
+      assetId: stats.assetId,
+      symbol: stats.symbol,
+      priceStartUsd: stats.priceStartUsd,
+      priceEndUsd: stats.priceEndUsd,
+      changePercent: stats.changePercent,
+      windowStartIso,
+      windowEndIso,
+    },
+  };
+}
+
+export async function fetchCoinGeckoSourceDocuments(
+  terms: string[],
+  windowStartSec: number,
+  windowEndSec: number,
+): Promise<SourceDocument[]> {
+  const tickers = cryptoTickersForTerms(terms);
+  const docs: SourceDocument[] = [];
+  for (const ticker of tickers) {
+    const stats = await fetchCryptoWindowChange(ticker, windowStartSec, windowEndSec);
+    if (!stats) continue;
+    docs.push(
+      sourceDocumentFromCryptoStats(
+        stats,
+        new Date(windowStartSec * 1000).toISOString(),
+        new Date(windowEndSec * 1000).toISOString(),
+        terms,
+      ),
+    );
+  }
+  return docs;
 }

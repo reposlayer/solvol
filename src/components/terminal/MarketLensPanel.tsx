@@ -6,6 +6,7 @@ import { useMarketSnapshot } from "@/hooks/useMarketSnapshot";
 import { PanelFrame, SubLabel } from "@/components/terminal/PanelFrame";
 import { useTerminal } from "@/components/terminal/terminal-context";
 import { fmtCents, fmtHours, fmtPct, fmtUsd, moveToneClass } from "@/lib/format";
+import { buildPolymarketMarketUrl } from "@/lib/polymarket/links";
 
 type Props = {
   marketId: string | null;
@@ -154,9 +155,14 @@ export function MarketLensPanel({ marketId, compact = false }: Props) {
               ★ pin
             </button>
           ) : null}
-          {data?.slug ? (
+          {data ? (
             <Link
-              href={`https://polymarket.com/event/${data.slug}`}
+              href={data.polymarketUrl ?? buildPolymarketMarketUrl({
+                eventSlug: data.eventSlug,
+                question: data.question,
+                marketSlug: data.slug,
+                id: data.id,
+              })}
               target="_blank"
               rel="noreferrer"
               className="font-mono text-[10px] text-[var(--terminal-cyan)] hover:underline"
@@ -173,7 +179,7 @@ export function MarketLensPanel({ marketId, compact = false }: Props) {
           <span className="animate-blink">▍</span> loading lens…
         </div>
       ) : isError ? (
-        <div className="m-3 rounded-sm border border-red-900/50 bg-red-950/20 p-3 font-mono text-[11px] text-red-300">
+        <div className="m-3 rounded-sm border border-[var(--terminal-border-hi)] bg-[var(--terminal-bg)] p-3 font-mono text-[11px] text-[var(--terminal-text-2)]">
           {error instanceof Error ? error.message : "Lens failed"}
         </div>
       ) : data ? (

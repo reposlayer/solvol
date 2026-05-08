@@ -3,12 +3,17 @@ import type { MarketMoveExplanation, MarketMoveWindow } from "@/lib/domain/types
 import { fetchGammaMarket, fetchSpread, getYesTokenFromMarket, fetchYesPriceHistory } from "@/lib/polymarket/client";
 import { detectLargestStepMove } from "@/lib/polymarket/move-detection";
 import { extractEntities } from "@/lib/entities/extract";
-import { fetchNewsArticles } from "@/lib/context/rss";
-import { fetchCryptoWindowChange } from "@/lib/context/coingecko";
-import { scoreCryptoFeed, scoreNewsArticles } from "@/lib/catalyst/scoring";
+import { collectFreshSourceDocuments } from "@/lib/context/source-engine";
+import { dedupeSourceDocuments, matchDocumentsToMarket } from "@/lib/context/source-documents";
+import { scoreSourceDocuments } from "@/lib/catalyst/source-scoring";
 import { findRelatedMarkets } from "@/lib/related/markets";
 import { narrateExplanation } from "@/lib/catalyst/narrator";
 import { toConfidenceBand } from "@/lib/util/confidence";
+import {
+  listSourceDocumentsForMarket,
+  persistMarketSourceMatches,
+  persistSourceDocuments,
+} from "@/lib/research/supabase";
 
 function volumeMultiplier(market: GammaMarket): number {
   const v24 = market.volume24hr ?? 0;
@@ -82,8 +87,6 @@ export async function explainMarketMove(marketId: string): Promise<MarketMoveExp
     ...entities.dates,
   ].slice(0, 18);
 
-  const articles = await fetchNewsArticles(queryTerms);
-
   const mainMoveSign = move.priceAfter >= move.priceBefore ? 1 : -1;
 
   const related = await findRelatedMarkets(
@@ -104,33 +107,31 @@ export async function explainMarketMove(marketId: string): Promise<MarketMoveExp
         ? "Related markets did not show a clean directional cluster in the sampled window."
         : "Some related markets moved similarly, but the cluster is not decisive.";
 
-  let catalysts = scoreNewsArticles({
+  const [storedSources, freshSources] = await Promise.all([
+    listSourceDocumentsForMarket(marketId, 40).catch(() => []),
+    collectFreshSourceDocuments({
+      marketId,
+      question: market.question,
+      terms: queryTerms,
+      windowStartIso: move.windowStart,
+      windowEndIso: move.windowEnd,
+      limit: 36,
+    }).catch(() => []),
+  ]);
+  const sourceDocuments = dedupeSourceDocuments([...storedSources, ...freshSources]);
+  const sourceMatches = matchDocumentsToMarket(marketId, queryTerms, sourceDocuments);
+  await persistSourceDocuments(freshSources).catch(() => []);
+  await persistMarketSourceMatches(sourceMatches).catch(() => undefined);
+
+  let catalysts = scoreSourceDocuments({
     marketId,
-    title: market.question,
-    articles,
+    documents: sourceDocuments,
     move,
     mainMoveSign,
     volumeMultiplierVs7dAvg: volMult,
     liquidityUsd: liq,
     crossMarketSupport: crossSupport,
   });
-
-  const windowStartSec = Date.parse(move.windowStart) / 1000;
-  const windowEndSec = Date.parse(move.windowEnd) / 1000;
-
-  for (const t of entities.tickers) {
-    const stats = await fetchCryptoWindowChange(t, windowStartSec, windowEndSec);
-    if (!stats) continue;
-    const c = scoreCryptoFeed({
-      marketId,
-      move,
-      stats,
-      volumeMultiplierVs7dAvg: volMult,
-      liquidityUsd: liq,
-      crossMarketSupport: crossSupport,
-    });
-    if (c) catalysts.push(c);
-  }
 
   catalysts.sort((a, b) => b.confidence - a.confidence);
   catalysts = catalysts.slice(0, 6);
@@ -148,9 +149,19 @@ export async function explainMarketMove(marketId: string): Promise<MarketMoveExp
         "Thin liquidity / wide spread causing noisy repricing",
         "Large discretionary trade (“whale”) without public headline linkage",
         "Cross-market arbitrage or portfolio hedging flows",
-        "Stale RSS ingestion delays versus actual headline times",
+        "Stale GDELT/RSS ingestion delays versus actual headline times",
       ]
     : [];
+
+  const sourcesByCategory = catalysts.reduce<Record<string, { label: string; url?: string }[]>>(
+    (acc, c) => {
+      const arr = acc[c.source] ?? [];
+      arr.push({ label: c.title, url: c.sourceUrl ?? undefined });
+      acc[c.source] = arr;
+      return acc;
+    },
+    {},
+  );
 
   const draft: MarketMoveExplanation = {
     marketId,
@@ -167,14 +178,7 @@ export async function explainMarketMove(marketId: string): Promise<MarketMoveExp
     possibleCausesWhenWeak: weak ? possibleCausesWhenWeak : [],
     relatedMarkets: related,
     crossMarketSummary,
-    sourcesByCategory: {
-      news: catalysts
-        .filter((c) => c.source === "news")
-        .map((c) => ({ label: c.title, url: c.sourceUrl ?? undefined })),
-      price_feed: catalysts
-        .filter((c) => c.source === "price_feed")
-        .map((c) => ({ label: c.title, url: c.sourceUrl ?? undefined })),
-    },
+    sourcesByCategory,
   };
 
   const explanation = await narrateExplanation(draft);

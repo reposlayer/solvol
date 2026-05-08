@@ -55,7 +55,6 @@ export function MarketDepthPanel({ marketId }: Props) {
           </span>
         ) : null
       }
-      scroll
     >
       {!marketId ? (
         <div className="px-3 py-8 font-mono text-[11px] text-[var(--terminal-muted)]">
@@ -66,7 +65,7 @@ export function MarketDepthPanel({ marketId }: Props) {
           <span className="animate-blink">▍</span> loading book…
         </div>
       ) : isError ? (
-        <div className="m-2 rounded-sm border border-red-900/50 bg-red-950/20 p-2 font-mono text-[11px] text-red-300">
+        <div className="m-2 rounded-sm border border-[var(--terminal-border-hi)] bg-[var(--terminal-bg)] p-2 font-mono text-[11px] text-[var(--terminal-text-2)]">
           {error instanceof Error ? error.message : "Book failed"}
         </div>
       ) : !summary ? (
@@ -86,7 +85,7 @@ export function MarketDepthPanel({ marketId }: Props) {
             />
           </div>
 
-          <div className="overflow-hidden rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)]">
+          <div className="overflow-x-auto rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)]">
             <table className="tdata w-full">
               <thead>
                 <tr>
@@ -98,7 +97,7 @@ export function MarketDepthPanel({ marketId }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {summary.ladder.map((row, idx) => {
+                {summary.ladder.slice(0, 8).map((row, idx) => {
                   const width = `${Math.max(4, (row.size / maxSize) * 100)}%`;
                   const sideTone =
                     row.side === "BID" ? "text-[var(--terminal-up)]" : "text-[var(--terminal-down)]";

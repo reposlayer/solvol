@@ -9,17 +9,17 @@ type Props = {
 };
 
 function tileBg(move: number | null | undefined): string {
-  if (move == null) return "rgba(108, 120, 136, 0.10)";
+  if (move == null) return "rgba(138, 138, 138, 0.10)";
   const v = Math.max(-15, Math.min(15, move));
   const a = Math.min(0.85, 0.18 + Math.abs(v) / 18);
-  if (v > 0) return `rgba(52, 211, 153, ${a.toFixed(2)})`;
-  if (v < 0) return `rgba(248, 113, 113, ${a.toFixed(2)})`;
-  return "rgba(108, 120, 136, 0.12)";
+  if (v > 0) return `rgba(242, 242, 242, ${a.toFixed(2)})`;
+  if (v < 0) return `rgba(90, 90, 90, ${a.toFixed(2)})`;
+  return "rgba(138, 138, 138, 0.12)";
 }
 
 function tileBorder(move: number | null | undefined): string {
   if (move == null || Math.abs(move) < 0.5) return "var(--terminal-border)";
-  return move > 0 ? "rgba(52, 211, 153, 0.45)" : "rgba(248, 113, 113, 0.45)";
+  return move > 0 ? "rgba(242, 242, 242, 0.45)" : "rgba(138, 138, 138, 0.45)";
 }
 
 /** Volume-weighted tile sizes via flex-grow, color by short-move %. */

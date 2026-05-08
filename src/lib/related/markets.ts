@@ -2,8 +2,7 @@ import type { RelatedMarketSnapshot } from "@/lib/domain/types";
 import type { PriceHistoryPoint } from "@/lib/polymarket/types";
 import { parseClobTokenIds } from "@/lib/polymarket/tokens";
 import { fetchYesPriceHistory } from "@/lib/polymarket/client";
-
-const GAMMA = "https://gamma-api.polymarket.com";
+import { buildPublicPolymarketUrl } from "@/lib/polymarket/public-api";
 
 type SearchEvent = {
   markets?: {
@@ -47,7 +46,11 @@ export async function findRelatedMarkets(
 ): Promise<RelatedMarketSnapshot[]> {
   const q = query.trim() || "politics";
   const res = await fetch(
-    `${GAMMA}/public-search?q=${encodeURIComponent(q)}&limit=8&events_status=active`,
+    buildPublicPolymarketUrl("gamma", "/public-search", {
+      q,
+      limit: 8,
+      events_status: "active",
+    }),
     { next: { revalidate: 120 } },
   );
   if (!res.ok) return [];
@@ -70,7 +73,10 @@ export async function findRelatedMarkets(
   const snap: RelatedMarketSnapshot[] = [];
 
   for (const c of taken) {
-    const mres = await fetch(`${GAMMA}/markets/${c.id}`, { next: { revalidate: 60 } });
+    const mres = await fetch(
+      buildPublicPolymarketUrl("gamma", `/markets/${encodeURIComponent(c.id)}`),
+      { next: { revalidate: 60 } },
+    );
     if (!mres.ok) continue;
     const m = (await mres.json()) as {
       clobTokenIds?: unknown;

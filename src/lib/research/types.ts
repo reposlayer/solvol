@@ -1,6 +1,7 @@
 import type { MarketMoveExplanation } from "@/lib/domain/types";
+import type { BetaAccessStatus } from "@/lib/auth/beta-access";
 
-export type PlanTier = "free" | "pro" | "team";
+export type PlanTier = "free" | "beta" | "pro" | "team";
 
 export type ResearchUser = {
   id: string;
@@ -9,6 +10,7 @@ export type ResearchUser = {
   plan: PlanTier;
   teamId: string | null;
   isDemo: boolean;
+  accessStatus?: BetaAccessStatus;
 };
 
 export type PlanLimits = {
@@ -25,6 +27,13 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     savedMarkets: 25,
     alerts: 3,
     reports: 2,
+    teamSeats: 1,
+  },
+  beta: {
+    catalystRunsPerDay: 48,
+    savedMarkets: 150,
+    alerts: 18,
+    reports: 20,
     teamSeats: 1,
   },
   pro: {
@@ -157,6 +166,8 @@ export type SavedReport = {
 
 export type ResearchSessionPayload = {
   configured: boolean;
+  authenticated: boolean;
+  accessStatus: BetaAccessStatus;
   user: ResearchUser;
   limits: PlanLimits;
 };

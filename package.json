@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": "22.x"
+    "node": ">=22 <25"
   },
   "scripts": {
     "dev": "next dev --webpack",
@@ -11,9 +11,23 @@
     "start": "next start",
     "lint": "eslint",
     "snapshot": "node -e \"const u=process.env.SNAPSHOT_URL||'http://127.0.0.1:3000';const t=process.env.SNAPSHOT_CRON_SECRET; if(!t){console.error('Set SNAPSHOT_CRON_SECRET'); process.exit(1);} fetch(u+'/api/internal/snapshot',{method:'POST',headers:{Authorization:'Bearer '+t}}).then(r=>r.text()).then(console.log).catch(e=>{console.error(e);process.exit(1);})\"",
-    "poll-snapshots": "node scripts/poller.mjs"
+    "ingest": "node scripts/ingest.mjs",
+    "poll-snapshots": "node scripts/poller.mjs",
+    "bridge:health": "node --experimental-strip-types scripts/bridge.mjs bridge:health",
+    "bridge:backfill:markets": "node --experimental-strip-types scripts/bridge.mjs bridge:backfill:markets",
+    "bridge:backfill:source": "node --experimental-strip-types scripts/bridge.mjs bridge:backfill:source",
+    "bridge:replay": "node --experimental-strip-types scripts/bridge.mjs bridge:replay",
+    "bridge:inject:synthetic": "node --experimental-strip-types scripts/bridge.mjs bridge:inject:synthetic",
+    "bridge:pause-source": "node --experimental-strip-types scripts/bridge.mjs bridge:pause-source",
+    "bridge:resume-source": "node --experimental-strip-types scripts/bridge.mjs bridge:resume-source",
+    "bridge:retention:plan": "node --experimental-strip-types scripts/bridge.mjs bridge:retention:plan",
+    "bridge:audit": "node --experimental-strip-types scripts/bridge.mjs bridge:audit",
+    "bridge:canary:check": "node --experimental-strip-types scripts/bridge.mjs bridge:canary:check",
+    "bridge:canary:env-template": "node --experimental-strip-types scripts/bridge.mjs bridge:canary:env-template"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.105.1",
     "@tanstack/react-query": "^5.100.5",
     "better-sqlite3": "^12.9.0",
     "next": "16.2.4",

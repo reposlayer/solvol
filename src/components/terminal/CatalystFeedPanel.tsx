@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useTerminal } from "@/components/terminal/terminal-context";
+import { TERMINAL_REFRESH } from "@/hooks/terminal-refresh";
 import { fmtTime, shorten } from "@/lib/format";
 
 type FeedMove = {
@@ -25,8 +26,8 @@ export function CatalystFeedPanel() {
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["catalyst-feed"],
     queryFn: fetchFeed,
-    staleTime: 60_000,
-    refetchInterval: 120_000,
+    staleTime: TERMINAL_REFRESH.feed.staleTimeMs,
+    refetchInterval: TERMINAL_REFRESH.feed.refetchIntervalMs,
   });
 
   return (

@@ -1,10 +1,25 @@
 export type CatalystSource =
   | "news"
+  | "event_graph"
   | "poll"
   | "price_feed"
+  | "macro"
+  | "entity_context"
   | "sportsbook"
   | "social"
   | "onchain";
+
+export type SourceProvider =
+  | "rss"
+  | "gdelt"
+  | "coingecko"
+  | "wikidata"
+  | "fred"
+  | "alpha_vantage";
+
+export type SourceCategory = CatalystSource;
+
+export type SourceOrigin = "fresh" | "stored";
 
 export type CatalystDirection = "YES" | "NO" | "unclear";
 
@@ -106,4 +121,28 @@ export type CryptoWindowStats = {
   priceStartUsd: number;
   priceEndUsd: number;
   changePercent: number;
+};
+
+export type SourceDocument = {
+  provider: SourceProvider;
+  externalId: string;
+  title: string;
+  url: string | null;
+  publishedAt: string | null;
+  retrievedAt: string;
+  summary: string | null;
+  category: SourceCategory;
+  matchedTerms: string[];
+  reliability: number;
+  metadata: Record<string, unknown>;
+  origin?: SourceOrigin;
+};
+
+export type SourceMatch = {
+  marketId: string;
+  provider: SourceProvider;
+  documentExternalId: string;
+  relevanceScore: number;
+  matchedTerms?: string[];
+  document?: SourceDocument;
 };

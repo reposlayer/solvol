@@ -1,11 +1,14 @@
-import type { GammaMarket } from "./types";
+import type { GammaEventSummary, GammaMarket } from "./types";
 import { fetchYesShortMomentumPct } from "./clob-momentum";
 import { baseTerminalHotScore, terminalScoreWithMomentum } from "./hot-score";
+import { buildPolymarketMarketUrl } from "./links";
+import { buildPublicPolymarketUrl } from "./public-api";
 import { yesTokenId } from "./tokens";
-
-const GAMMA = "https://gamma-api.polymarket.com";
+import { TERMINAL_REFRESH } from "@/hooks/terminal-refresh";
+import { sourceDensityForMarkets } from "@/lib/research/supabase";
 
 export type DiscoveryLane =
+  | "all_markets"
   | "high_volume"
   | "closing_soon"
   | "new"
@@ -19,6 +22,9 @@ export type DiscoveryMarketRow = {
   id: string;
   question: string;
   slug?: string;
+  eventSlug?: string | null;
+  eventTitle?: string | null;
+  polymarketUrl?: string;
   yesPrice: number | null;
   volume24hr: number;
   volume1wk: number;
@@ -32,6 +38,16 @@ export type DiscoveryMarketRow = {
   volumeSpikeRatio?: number;
   /** Step move % on YES implied (CLOB coarse); hot lane when momentum batch runs. */
   shortMovePct?: number | null;
+  /** Count of indexed source documents matched to this market. */
+  sourceDensity?: number;
+};
+
+export type DiscoveryLaneOpts = {
+  limit?: number;
+  closingWithinHours?: number;
+  tagId?: string;
+  offset?: number;
+  query?: string | null;
 };
 
 function parseYesPrice(outcomePrices: string | undefined): number | null {
@@ -53,8 +69,8 @@ async function fetchMarketsQuery(params: Record<string, string | number | boolea
   for (const [k, v] of Object.entries(params)) {
     q.set(k, String(v));
   }
-  const res = await fetch(`${GAMMA}/markets?${q.toString()}`, {
-    next: { revalidate: 60 },
+  const res = await fetch(buildPublicPolymarketUrl("gamma", "/markets", q), {
+    next: { revalidate: TERMINAL_REFRESH.discovery.serverRevalidateSeconds },
   });
   if (!res.ok) {
     throw new Error(`Gamma markets: ${res.status}`);
@@ -62,16 +78,66 @@ async function fetchMarketsQuery(params: Record<string, string | number | boolea
   return res.json() as Promise<GammaMarket[]>;
 }
 
+async function fetchEventsQuery(params: Record<string, string | number | boolean>): Promise<GammaEventSummary[]> {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    q.set(k, String(v));
+  }
+  const res = await fetch(buildPublicPolymarketUrl("gamma", "/events", q), {
+    next: { revalidate: TERMINAL_REFRESH.discovery.serverRevalidateSeconds },
+  });
+  if (!res.ok) {
+    throw new Error(`Gamma events: ${res.status}`);
+  }
+  const data = (await res.json()) as unknown;
+  if (Array.isArray(data)) return data as GammaEventSummary[];
+  if (data && typeof data === "object" && Array.isArray((data as { events?: unknown }).events)) {
+    return (data as { events: GammaEventSummary[] }).events;
+  }
+  return [];
+}
+
+async function fetchPublicSearch(query: string, limit: number): Promise<unknown> {
+  const res = await fetch(
+    buildPublicPolymarketUrl("gamma", "/public-search", {
+      q: query,
+      limit,
+    }),
+    { next: { revalidate: TERMINAL_REFRESH.discovery.serverRevalidateSeconds } },
+  );
+  if (!res.ok) {
+    throw new Error(`Gamma public-search: ${res.status}`);
+  }
+  return res.json() as Promise<unknown>;
+}
+
+function firstEvent(market: GammaMarket): GammaEventSummary | null {
+  return market.events?.find((event) => event?.slug || event?.title) ?? null;
+}
+
 function toRow(m: GammaMarket, extras?: Partial<DiscoveryMarketRow>): DiscoveryMarketRow {
   const volume24hr = m.volume24hr ?? 0;
   const volume1wk = m.volume1wk ?? 0;
   const dailyAvg = volume1wk > 0 ? volume1wk / 7 : volume24hr;
   const volumeSpikeRatio = dailyAvg > 0 ? volume24hr / dailyAvg : 1;
+  const event = firstEvent(m);
+  const eventSlug = extras?.eventSlug ?? event?.slug ?? null;
+  const eventTitle = extras?.eventTitle ?? event?.title ?? null;
 
   return {
     id: m.id,
     question: m.question,
     slug: m.slug,
+    eventSlug,
+    eventTitle,
+    polymarketUrl:
+      extras?.polymarketUrl ??
+      buildPolymarketMarketUrl({
+        eventSlug,
+        question: m.question,
+        marketSlug: m.slug,
+        id: m.id,
+      }),
     yesPrice: parseYesPrice(m.outcomePrices),
     volume24hr,
     volume1wk,
@@ -96,6 +162,44 @@ function withTag(
     return { ...params, tag_id: tagId };
   }
   return params;
+}
+
+function rowsFromEvents(events: GammaEventSummary[]): DiscoveryMarketRow[] {
+  const rows: DiscoveryMarketRow[] = [];
+  for (const event of events) {
+    for (const market of event.markets ?? []) {
+      rows.push(
+        toRow(market, {
+          eventSlug: event.slug ?? null,
+          eventTitle: event.title ?? null,
+        }),
+      );
+    }
+  }
+  return rows;
+}
+
+function uniqueRows(rows: DiscoveryMarketRow[]): DiscoveryMarketRow[] {
+  const byId = new Map<string, DiscoveryMarketRow>();
+  for (const row of rows) {
+    const current = byId.get(row.id);
+    if (!current || (!current.eventSlug && row.eventSlug)) {
+      byId.set(row.id, row);
+    }
+  }
+  return [...byId.values()];
+}
+
+function rowsFromPublicSearch(data: unknown): DiscoveryMarketRow[] {
+  if (!data || typeof data !== "object") return [];
+  const record = data as {
+    events?: GammaEventSummary[];
+    markets?: GammaMarket[];
+  };
+  return uniqueRows([
+    ...rowsFromEvents(Array.isArray(record.events) ? record.events : []),
+    ...(Array.isArray(record.markets) ? record.markets.map((market) => toRow(market)) : []),
+  ]);
 }
 
 const HOT_MOMENTUM_DEPTH = 55;
@@ -134,13 +238,53 @@ function hoursUntil(iso: string | null): number | null {
 
 export async function fetchDiscoveryLane(
   lane: DiscoveryLane,
-  opts?: { limit?: number; closingWithinHours?: number; tagId?: string },
+  opts?: DiscoveryLaneOpts,
 ): Promise<DiscoveryMarketRow[]> {
   const limit = Math.min(Math.max(opts?.limit ?? 40, 1), 80);
   const closingHours = opts?.closingWithinHours ?? 168;
   const tagId = opts?.tagId;
+  const offset = Math.max(0, opts?.offset ?? 0);
+  const query = opts?.query?.trim();
+
+  if (query) {
+    const rows = rowsFromPublicSearch(await fetchPublicSearch(query, Math.min(limit * 2, 100)));
+    return rows.slice(0, limit);
+  }
 
   switch (lane) {
+    case "all_markets": {
+      const events = await fetchEventsQuery(
+        withTag(
+          {
+            closed: false,
+            active: true,
+            limit: Math.min(Math.max(limit, 20), 100),
+            offset,
+            order: "volume24hr",
+            ascending: false,
+          },
+          tagId,
+        ),
+      );
+      const rows = uniqueRows(rowsFromEvents(events))
+        .sort((a, b) => b.volume24hr - a.volume24hr)
+        .slice(0, limit);
+      if (rows.length) return rows;
+      const raw = await fetchMarketsQuery(
+        withTag(
+          {
+            closed: false,
+            active: true,
+            limit,
+            offset,
+            order: "volume24hr",
+            ascending: false,
+          },
+          tagId,
+        ),
+      );
+      return raw.map((m) => toRow(m));
+    }
     case "high_volume": {
       const raw = await fetchMarketsQuery(
         withTag(
@@ -334,9 +478,11 @@ export async function fetchDiscoveryLane(
           tagId,
         ),
       );
+      const sourceDensity = await sourceDensityForMarkets(raw.map((m) => m.id)).catch(() => new Map<string, number>());
       return raw
         .map((m) => {
           const row = toRow(m);
+          const density = sourceDensity.get(row.id) ?? 0;
           const q = row.question.toLowerCase();
           const evidenceWords = [
             "election",
@@ -356,8 +502,12 @@ export async function fetchDiscoveryLane(
             "earnings",
             "launch",
           ].filter((word) => q.includes(word)).length;
-          const score = evidenceWords * 16 + Math.log10(1 + row.volume24hr) * 8 + (row.volumeSpikeRatio ?? 1) * 4;
-          return { ...row, terminalScore: score };
+          const score =
+            evidenceWords * 16 +
+            Math.log10(1 + row.volume24hr) * 8 +
+            (row.volumeSpikeRatio ?? 1) * 4 +
+            Math.min(40, density * 5);
+          return { ...row, terminalScore: score, sourceDensity: density };
         })
         .filter((row) => (row.terminalScore ?? 0) > 18)
         .sort((a, b) => (b.terminalScore ?? 0) - (a.terminalScore ?? 0))
@@ -372,6 +522,7 @@ export async function fetchDiscoveryLane(
 
 export function isDiscoveryLane(s: string | null): s is DiscoveryLane {
   return (
+    s === "all_markets" ||
     s === "high_volume" ||
     s === "closing_soon" ||
     s === "new" ||

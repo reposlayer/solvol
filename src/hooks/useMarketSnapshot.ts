@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { TERMINAL_REFRESH } from "@/hooks/terminal-refresh";
 import type { JumpPoint } from "@/lib/polymarket/market-intel";
 
 export type MarketSnapshotPayload = {
@@ -8,6 +9,9 @@ export type MarketSnapshotPayload = {
   question: string;
   conditionId: string | null;
   slug: string | null;
+  eventSlug: string | null;
+  eventTitle: string | null;
+  polymarketUrl: string;
   category: string | null;
   yesTokenId: string;
   noTokenId: string | null;
@@ -15,6 +19,7 @@ export type MarketSnapshotPayload = {
   midpoint: number | null;
   history: { t: number; p: number }[];
   jump: JumpPoint | null;
+  outcomePrices?: string;
   yesPrice: number | null;
   noPrice: number | null;
   volume24hr: number | null;
@@ -22,6 +27,8 @@ export type MarketSnapshotPayload = {
   liquidity: number | null;
   endDate: string | null;
   createdAt: string | null;
+  dataMode?: "real" | "mock";
+  fallbackReason?: string;
 };
 
 export function marketSnapshotQueryKey(marketId: string) {
@@ -39,6 +46,8 @@ export function useMarketSnapshot(marketId: string) {
       }
       return json as MarketSnapshotPayload;
     },
-    staleTime: 45_000,
+    staleTime: TERMINAL_REFRESH.snapshot.staleTimeMs,
+    refetchInterval: TERMINAL_REFRESH.snapshot.refetchIntervalMs,
+    refetchIntervalInBackground: true,
   });
 }

@@ -1,16 +1,18 @@
-"use client";
-
+import { Suspense } from "react";
 import { TerminalProvider } from "@/components/terminal/terminal-context";
 import { TerminalShell } from "@/components/terminal/TerminalShell";
-import { useParams } from "next/navigation";
 
-export default function MarketTerminalPage() {
-  const params = useParams();
-  const id = typeof params.id === "string" ? params.id : "540816";
-
+export default async function MarketTerminalPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   return (
-    <TerminalProvider key={id} initialMarketId={id}>
-      <TerminalShell />
-    </TerminalProvider>
+    <Suspense fallback={null}>
+      <TerminalProvider key={id} initialMarketId={id}>
+        <TerminalShell />
+      </TerminalProvider>
+    </Suspense>
   );
 }

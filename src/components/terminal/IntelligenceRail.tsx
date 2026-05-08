@@ -68,6 +68,17 @@ function EntityChips({ items }: { items: string[] }) {
   );
 }
 
+function sourceMeta(catalyst: Catalyst): { provider: string | null; origin: string | null } {
+  const provider = catalyst.rawSnippetId?.split(":")[0] ?? null;
+  const evidence = catalyst.evidence.find((item) => /\b(fresh|stored)\b/i.test(item));
+  const origin = evidence?.match(/\b(fresh|stored)\b/i)?.[1]?.toLowerCase() ?? null;
+  return { provider, origin };
+}
+
+function prettyCategory(value: string): string {
+  return value.replace(/_/g, " ");
+}
+
 export function IntelligenceRail() {
   const { loading, error, result } = useTerminal();
 
@@ -85,7 +96,7 @@ export function IntelligenceRail() {
             <span className="animate-blink mr-1">▍</span> running retrieval &amp; scoring…
           </div>
         ) : error && !result ? (
-          <div className="m-3 rounded-sm border border-red-900/50 bg-red-950/20 p-3 font-mono text-[11px] text-red-300">
+          <div className="m-3 rounded-sm border border-[var(--terminal-border-hi)] bg-[var(--terminal-bg)] p-3 font-mono text-[11px] text-[var(--terminal-text-2)]">
             {error}
           </div>
         ) : !result ? (
@@ -169,12 +180,29 @@ function CatalystDetail({ result }: { result: MarketMoveExplanation }) {
         <section className="mb-3 rounded-sm border border-[var(--terminal-cyan)]/40 bg-[var(--terminal-cyan-soft)]/30 p-2.5">
           <div className="flex items-baseline justify-between gap-2">
             <div className="font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--terminal-cyan)]">
-              Likely catalyst · {top.source}
+              Likely catalyst · {prettyCategory(top.source)}
             </div>
             <div className="tnum font-mono text-[10px] text-[var(--terminal-text-2)]">
               {top.confidence}%
             </div>
           </div>
+          {(() => {
+            const meta = sourceMeta(top);
+            return meta.provider || meta.origin ? (
+              <div className="mt-1 flex flex-wrap gap-1 font-mono text-[9px] uppercase tracking-wide">
+                {meta.provider ? (
+                  <span className="rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-1.5 py-0.5 text-[var(--terminal-cyan)]">
+                    {meta.provider}
+                  </span>
+                ) : null}
+                {meta.origin ? (
+                  <span className="rounded-sm border border-[var(--terminal-border)] bg-[var(--terminal-bg-2)] px-1.5 py-0.5 text-[var(--terminal-amber)]">
+                    {meta.origin}
+                  </span>
+                ) : null}
+              </div>
+            ) : null;
+          })()}
           <p className="mt-1 text-[12px] font-medium text-[var(--terminal-text)]">{top.title}</p>
           <p className="mt-1 text-[11px] leading-relaxed text-[var(--terminal-text-2)]">
             {top.summary}
@@ -256,7 +284,7 @@ function CatalystDetail({ result }: { result: MarketMoveExplanation }) {
               items.length ? (
                 <li key={cat}>
                   <div className="font-mono text-[9px] uppercase tracking-wide text-[var(--terminal-muted)]">
-                    {cat} · {items.length}
+                    {prettyCategory(cat)} · {items.length}
                   </div>
                   <ul className="mt-1 space-y-0.5">
                     {items.slice(0, 6).map((it) => (
@@ -344,7 +372,7 @@ function CatalystDetail({ result }: { result: MarketMoveExplanation }) {
       ) : null}
 
       {result.possibleCausesWhenWeak.length > 0 ? (
-        <section className="mb-3 rounded-sm border border-amber-700/50 bg-[var(--terminal-amber-soft)]/40 p-2.5">
+        <section className="mb-3 rounded-sm border border-[var(--terminal-border-hi)] bg-[var(--terminal-amber-soft)]/40 p-2.5">
           <div className="font-mono text-[9px] font-semibold uppercase tracking-wide text-[var(--terminal-amber)]">
             Weak signal · alternatives
           </div>

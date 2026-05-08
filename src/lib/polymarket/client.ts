@@ -1,41 +1,92 @@
-import type { GammaMarket, PriceHistoryPoint, PricesHistoryResponse } from "./types";
+import type { GammaEventSummary, GammaMarket, PriceHistoryPoint, PricesHistoryResponse } from "./types";
+import { TERMINAL_REFRESH } from "@/hooks/terminal-refresh";
 import {
   normalizeDataApiTrades,
   normalizeOrderBook,
   type NormalizedOrderBook,
   type PublicMarketTrade,
 } from "./market-intel";
+import { buildPublicPolymarketUrl, parsePublicMidpoint } from "./public-api";
+import { buildPolymarketMarketUrl } from "./links";
 import { noTokenId, yesTokenId } from "./tokens";
 
-const GAMMA_BASE = "https://gamma-api.polymarket.com";
-const CLOB_BASE = "https://clob.polymarket.com";
-const DATA_BASE = "https://data-api.polymarket.com";
+export type MarketEventContext = {
+  eventSlug: string | null;
+  eventTitle: string | null;
+  polymarketUrl: string;
+};
 
 export async function fetchGammaMarket(marketId: string): Promise<GammaMarket> {
-  const res = await fetch(`${GAMMA_BASE}/markets/${encodeURIComponent(marketId)}`, {
-    next: { revalidate: 60 },
-  });
+  const res = await fetch(
+    buildPublicPolymarketUrl("gamma", `/markets/${encodeURIComponent(marketId)}`),
+    { next: { revalidate: TERMINAL_REFRESH.snapshot.marketRevalidateSeconds } },
+  );
   if (!res.ok) {
     throw new Error(`Gamma markets/${marketId}: ${res.status}`);
   }
   return res.json() as Promise<GammaMarket>;
 }
 
+function eventContextFromEvent(market: GammaMarket, event: GammaEventSummary | null | undefined): MarketEventContext {
+  const eventSlug = event?.slug ?? null;
+  const eventTitle = event?.title ?? null;
+  return {
+    eventSlug,
+    eventTitle,
+    polymarketUrl: buildPolymarketMarketUrl({
+      eventSlug,
+      question: market.question,
+      marketSlug: market.slug,
+      id: market.id,
+    }),
+  };
+}
+
+export function eventContextFromMarket(market: GammaMarket): MarketEventContext {
+  return eventContextFromEvent(
+    market,
+    market.events?.find((event) => event?.slug || event?.title),
+  );
+}
+
+export async function resolveMarketEventContext(market: GammaMarket): Promise<MarketEventContext> {
+  const direct = eventContextFromMarket(market);
+  if (direct.eventSlug) return direct;
+
+  try {
+    const res = await fetch(
+      buildPublicPolymarketUrl("gamma", "/public-search", {
+        q: market.question,
+        limit: 8,
+      }),
+      { next: { revalidate: TERMINAL_REFRESH.snapshot.marketRevalidateSeconds } },
+    );
+    if (!res.ok) return direct;
+    const data = (await res.json()) as { events?: GammaEventSummary[] };
+    const events = Array.isArray(data.events) ? data.events : [];
+    const matched =
+      events.find((event) =>
+        event.markets?.some((candidate) => String(candidate.id) === String(market.id)),
+      ) ?? events[0];
+    return eventContextFromEvent(market, matched);
+  } catch {
+    return direct;
+  }
+}
+
 export async function fetchMidpoint(tokenId: string): Promise<number | null> {
   const res = await fetch(
-    `${CLOB_BASE}/midpoint?token_id=${encodeURIComponent(tokenId)}`,
-    { next: { revalidate: 30 } },
+    buildPublicPolymarketUrl("clob", "/midpoint", { token_id: tokenId }),
+    { next: { revalidate: TERMINAL_REFRESH.snapshot.clobRevalidateSeconds } },
   );
   if (!res.ok) return null;
-  const data = (await res.json()) as { mid?: string };
-  const mid = data.mid !== undefined ? Number(data.mid) : NaN;
-  return Number.isFinite(mid) ? mid : null;
+  return parsePublicMidpoint(await res.json());
 }
 
 export async function fetchSpread(tokenId: string): Promise<number | null> {
   const res = await fetch(
-    `${CLOB_BASE}/spread?token_id=${encodeURIComponent(tokenId)}`,
-    { next: { revalidate: 30 } },
+    buildPublicPolymarketUrl("clob", "/spread", { token_id: tokenId }),
+    { next: { revalidate: TERMINAL_REFRESH.snapshot.clobRevalidateSeconds } },
   );
   if (!res.ok) return null;
   const data = (await res.json()) as { spread?: string };
@@ -45,8 +96,8 @@ export async function fetchSpread(tokenId: string): Promise<number | null> {
 
 export async function fetchOrderBook(tokenId: string): Promise<NormalizedOrderBook | null> {
   const res = await fetch(
-    `${CLOB_BASE}/book?token_id=${encodeURIComponent(tokenId)}`,
-    { next: { revalidate: 15 } },
+    buildPublicPolymarketUrl("clob", "/book", { token_id: tokenId }),
+    { next: { revalidate: TERMINAL_REFRESH.intel.orderBookRevalidateSeconds } },
   );
   if (!res.ok) return null;
   const data = await res.json();
@@ -63,8 +114,8 @@ export async function fetchMarketTrades(
     limit: String(Math.min(Math.max(limit, 1), 100)),
     takerOnly: "true",
   });
-  const res = await fetch(`${DATA_BASE}/trades?${params.toString()}`, {
-    next: { revalidate: 20 },
+  const res = await fetch(buildPublicPolymarketUrl("data", "/trades", params), {
+    next: { revalidate: TERMINAL_REFRESH.intel.tradesRevalidateSeconds },
   });
   if (!res.ok) return [];
   const data = await res.json();
@@ -72,9 +123,8 @@ export async function fetchMarketTrades(
 }
 
 async function fetchPricesHistoryRaw(params: Record<string, string>): Promise<PricesHistoryResponse> {
-  const q = new URLSearchParams(params);
-  const res = await fetch(`${CLOB_BASE}/prices-history?${q.toString()}`, {
-    next: { revalidate: 120 },
+  const res = await fetch(buildPublicPolymarketUrl("clob", "/prices-history", params), {
+    next: { revalidate: TERMINAL_REFRESH.snapshot.historyRevalidateSeconds },
   });
   const data = (await res.json()) as PricesHistoryResponse;
   return data;

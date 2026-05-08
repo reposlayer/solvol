@@ -1,5 +1,6 @@
 import Parser from "rss-parser";
 import type { ExternalArticle } from "@/lib/domain/types";
+import { normalizeExternalUrl } from "../safe-url.ts";
 
 const DEFAULT_FEEDS: { url: string; label: string }[] = [
   { url: "https://feeds.reuters.com/reuters/topNews", label: "Reuters Top News" },
@@ -24,7 +25,7 @@ async function fetchFeed(url: string, label: string): Promise<ExternalArticle[]>
     const items = feed.items ?? [];
     return items.map((item, i) => {
       const title = item.title ?? "(untitled)";
-      const link = item.link ?? url;
+      const link = normalizeExternalUrl(item.link) ?? normalizeExternalUrl(url) ?? "https://solvol.local/source";
       const pub =
         item.isoDate ??
         item.pubDate ??

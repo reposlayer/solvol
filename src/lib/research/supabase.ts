@@ -11,6 +11,21 @@ import type {
   SourceLedgerEntry,
   WorkspaceLayout,
 } from "@/lib/research/types";
+import type { SourceDocument, SourceMatch } from "@/lib/domain/types";
+import { sourceDensityByMarket } from "@/lib/context/source-documents";
+import {
+  acceptBetaInviteForUser,
+  accessStatusForEmail,
+  planAllowsBetaAccess,
+  type AcceptedBetaUser,
+  type BetaProfileRow,
+  type SupabaseServiceConfig,
+} from "@/lib/auth/beta-access";
+import {
+  fromSourceDocumentRow,
+  toMarketSourceMatchRow,
+  toSourceDocumentRow,
+} from "@/lib/research/source-memory";
 
 type SupabaseUserResponse = {
   id: string;
@@ -18,18 +33,11 @@ type SupabaseUserResponse = {
   user_metadata?: { full_name?: string; name?: string } | null;
 };
 
-export type SupabaseConfig = {
-  url: string;
-  serviceKey: string;
-};
+export type SupabaseConfig = SupabaseServiceConfig;
 
 export function getSupabaseConfig(): SupabaseConfig | null {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_SERVICE_KEY ??
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
   if (!url || !serviceKey) return null;
   return { url: url.replace(/\/$/, ""), serviceKey };
 }
@@ -83,54 +91,115 @@ function qs(params: Record<string, string | number | boolean | undefined>): stri
 }
 
 function mapPlan(value: unknown): PlanTier {
-  return value === "pro" || value === "team" ? value : "free";
+  return value === "beta" || value === "pro" || value === "team" ? value : "free";
+}
+
+function mapAcceptedBetaUser(user: AcceptedBetaUser): ResearchUser {
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    plan: user.plan,
+    teamId: user.teamId,
+    isDemo: false,
+    accessStatus: user.accessStatus,
+  };
+}
+
+async function userFromServerCookies(): Promise<SupabaseUserResponse | null> {
+  try {
+    const { createSupabaseServerClient, supabaseAuthConfigured } = await import("@/lib/supabase/server");
+    if (!supabaseAuthConfigured()) return null;
+    const supabase = await createSupabaseServerClient();
+    const claims = await supabase.auth.getClaims();
+    if (claims.error || !claims.data?.claims) return null;
+    const user = await supabase.auth.getUser();
+    if (user.error || !user.data.user) return null;
+    return {
+      id: user.data.user.id,
+      email: user.data.user.email ?? null,
+      user_metadata: user.data.user.user_metadata ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function userFromRequest(request: Request): Promise<ResearchUser> {
   const cfg = getSupabaseConfig();
+  const authRequired = process.env.SUPABASE_REQUIRE_AUTH === "true";
   const fallback: ResearchUser = {
     id: process.env.SOLVOL_DEMO_USER_ID ?? "00000000-0000-4000-8000-000000000001",
     email: "demo@solvol.local",
     displayName: "Research Demo",
-    plan: "pro",
+    plan: "beta",
     teamId: null,
-    isDemo: !cfg,
+    isDemo: !authRequired,
+    accessStatus: authRequired ? "unauthenticated" : "demo",
   };
-  if (!cfg) return fallback;
+  if (!cfg) {
+    if (authRequired) {
+      throw new ResearchStoreError("Supabase service role is not configured", 503);
+    }
+    return fallback;
+  }
 
   const auth = request.headers.get("authorization");
   const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) {
-    if (process.env.SUPABASE_REQUIRE_AUTH === "true") {
-      throw new ResearchStoreError("Authentication required", 401);
+  let authUser: SupabaseUserResponse | null = null;
+
+  if (token) {
+    const userRes = await fetch(`${cfg.url}/auth/v1/user`, {
+      headers: {
+        apikey: cfg.serviceKey,
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
+    if (!userRes.ok) {
+      throw new ResearchStoreError("Invalid Supabase auth token", 401);
     }
-    return { ...fallback, isDemo: true };
+    authUser = (await userRes.json()) as SupabaseUserResponse;
+  } else {
+    authUser = await userFromServerCookies();
   }
 
-  const userRes = await fetch(`${cfg.url}/auth/v1/user`, {
-    headers: {
-      apikey: cfg.serviceKey,
-      Authorization: `Bearer ${token}`,
-    },
-    cache: "no-store",
-  });
-  if (!userRes.ok) {
-    throw new ResearchStoreError("Invalid Supabase auth token", 401);
+  if (!authUser) {
+    if (authRequired) {
+      throw new ResearchStoreError("Authentication required", 401);
+    }
+    return fallback;
   }
-  const authUser = (await userRes.json()) as SupabaseUserResponse;
-  const profile = await ensureProfile({
+
+  const accepted = await acceptBetaInviteForUser({
     id: authUser.id,
     email: authUser.email ?? null,
     displayName: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
   });
-  return profile;
+
+  if (accepted.user) {
+    return mapAcceptedBetaUser(accepted.user);
+  }
+
+  if (authRequired) {
+    const status = accepted.status === "waitlisted" ? "Beta invite required" : "Beta access is not active";
+    throw new ResearchStoreError(status, 403);
+  }
+
+  const accessStatus = await accessStatusForEmail(authUser.email ?? null);
+  const profile = await ensureProfile({
+    id: authUser.id,
+    email: authUser.email ?? null,
+    displayName: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
+  }, "beta");
+  return { ...profile, accessStatus };
 }
 
 export async function ensureProfile(input: {
   id: string;
   email: string | null;
   displayName: string | null;
-}): Promise<ResearchUser> {
+}, defaultPlan: PlanTier = "free"): Promise<ResearchUser> {
   type Row = {
     id: string;
     email: string | null;
@@ -149,7 +218,7 @@ export async function ensureProfile(input: {
         id: input.id,
         email: input.email,
         display_name: input.displayName,
-        plan: "free",
+        plan: defaultPlan,
       }),
     });
     const row = inserted[0]!;
@@ -160,9 +229,33 @@ export async function ensureProfile(input: {
       plan: mapPlan(row.plan),
       teamId: row.team_id,
       isDemo: false,
+      accessStatus: planAllowsBetaAccess(row.plan) ? "accepted" : "denied",
     };
   }
   const row = rows[0];
+  if (!planAllowsBetaAccess(row.plan) && defaultPlan !== "free") {
+    const updated = await supabaseRequest<BetaProfileRow[]>(
+      `/rest/v1/profiles?${qs({ id: `eq.${input.id}` })}`,
+      {
+        method: "PATCH",
+        prefer: "return=representation",
+        body: JSON.stringify({
+          plan: defaultPlan,
+          updated_at: new Date().toISOString(),
+        }),
+      },
+    );
+    const next = updated[0] ?? row;
+    return {
+      id: next.id,
+      email: next.email,
+      displayName: next.display_name,
+      plan: mapPlan(next.plan),
+      teamId: next.team_id,
+      isDemo: false,
+      accessStatus: "accepted",
+    };
+  }
   return {
     id: row.id,
     email: row.email,
@@ -170,6 +263,7 @@ export async function ensureProfile(input: {
     plan: mapPlan(row.plan),
     teamId: row.team_id,
     isDemo: false,
+    accessStatus: planAllowsBetaAccess(row.plan) ? "accepted" : "denied",
   };
 }
 
@@ -442,6 +536,81 @@ export async function listLedger(user: ResearchUser, marketId?: string | null) {
   if (marketId) query.market_id = `eq.${marketId}`;
   const rows = await supabaseRequest<Record<string, unknown>[]>(`/rest/v1/source_ledger_entries?${qs(query)}`);
   return rows.map(fromLedger);
+}
+
+export async function persistSourceDocuments(documents: SourceDocument[]): Promise<SourceDocument[]> {
+  if (!supabaseConfigured() || documents.length === 0) return documents;
+  const rows = await supabaseRequest<Record<string, unknown>[]>(
+    `/rest/v1/source_documents?${qs({ on_conflict: "provider,external_id" })}`,
+    {
+      method: "POST",
+      prefer: "resolution=merge-duplicates,return=representation",
+      body: JSON.stringify(documents.map(toSourceDocumentRow)),
+    },
+  );
+  return rows.map(fromSourceDocumentRow);
+}
+
+export async function persistMarketSourceMatches(matches: SourceMatch[]): Promise<void> {
+  if (!supabaseConfigured() || matches.length === 0) return;
+  await supabaseRequest(`/rest/v1/market_source_matches?${qs({ on_conflict: "market_id,provider,document_external_id" })}`, {
+    method: "POST",
+    prefer: "resolution=merge-duplicates",
+    body: JSON.stringify(matches.map(toMarketSourceMatchRow)),
+  });
+}
+
+async function fetchSourceDocument(provider: string, externalId: string): Promise<SourceDocument | null> {
+  const rows = await supabaseRequest<Record<string, unknown>[]>(
+    `/rest/v1/source_documents?${qs({
+      select: "*",
+      provider: `eq.${provider}`,
+      external_id: `eq.${externalId}`,
+      limit: 1,
+    })}`,
+  );
+  return rows[0] ? fromSourceDocumentRow(rows[0]) : null;
+}
+
+export async function listSourceDocumentsForMarket(
+  marketId: string,
+  limit = 40,
+): Promise<SourceDocument[]> {
+  if (!supabaseConfigured()) return [];
+  const rows = await supabaseRequest<Record<string, unknown>[]>(
+    `/rest/v1/market_source_matches?${qs({
+      select: "provider,document_external_id,relevance_score",
+      market_id: `eq.${marketId}`,
+      order: "relevance_score.desc",
+      limit: Math.min(Math.max(limit, 1), 80),
+    })}`,
+  );
+  const docs = await Promise.all(
+    rows.map((row) =>
+      fetchSourceDocument(String(row.provider), String(row.document_external_id)).catch(() => null),
+    ),
+  );
+  return docs.filter((doc): doc is SourceDocument => doc !== null);
+}
+
+export async function sourceDensityForMarkets(marketIds: string[]): Promise<Map<string, number>> {
+  if (!supabaseConfigured() || marketIds.length === 0) return new Map();
+  const ids = Array.from(new Set(marketIds.filter(Boolean))).slice(0, 180);
+  const rows = await supabaseRequest<Record<string, unknown>[]>(
+    `/rest/v1/market_source_matches?${qs({
+      select: "market_id,provider,document_external_id,relevance_score",
+      market_id: `in.(${ids.join(",")})`,
+      limit: 1000,
+    })}`,
+  );
+  return sourceDensityByMarket(
+    rows.map((row) => ({
+      marketId: String(row.market_id),
+      provider: String(row.provider) as SourceMatch["provider"],
+      documentExternalId: String(row.document_external_id),
+      relevanceScore: Number(row.relevance_score ?? 0),
+    })),
+  );
 }
 
 export async function persistCatalystRun(

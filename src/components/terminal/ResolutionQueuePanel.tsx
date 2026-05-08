@@ -36,7 +36,7 @@ export function ResolutionQueuePanel({ onSelectId }: Props) {
   const closing = useTerminalDiscovery("closing_soon", { limit: 60, hours: 96 });
   const rows = [...(closing.data ?? [])]
     .sort((a, b) => urgency(b) - urgency(a))
-    .slice(0, 14);
+    .slice(0, 6);
   const maxUrgency = Math.max(...rows.map(urgency), 1);
 
   return (

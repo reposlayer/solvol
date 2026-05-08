@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import type { DiscoveryLane, DiscoveryMarketRow } from "@/lib/polymarket/discovery";
+import { isDiscoveryLane, type DiscoveryLane, type DiscoveryMarketRow } from "@/lib/polymarket/discovery";
 import {
   parseClosingHoursFromSearch,
   parseDiscoveryLimitFromSearch,
@@ -13,15 +13,7 @@ import { useTerminal } from "@/components/terminal/terminal-context";
 import { fmtCents, fmtUsd, shorten } from "@/lib/format";
 
 function laneFromSearch(raw: string | null): DiscoveryLane {
-  if (
-    raw === "high_volume" ||
-    raw === "closing_soon" ||
-    raw === "new" ||
-    raw === "hot"
-  ) {
-    return raw;
-  }
-  return "hot";
+  return isDiscoveryLane(raw) ? raw : "hot";
 }
 
 type ItemProps = {
@@ -111,7 +103,7 @@ export function TerminalTape() {
 
   return (
     <div
-      className={`flex h-7 shrink-0 items-stretch border-t border-[var(--terminal-border)] bg-[var(--terminal-panel)] font-mono text-[10px] ${
+      className={`flex h-6 shrink-0 items-stretch border-t border-[var(--terminal-border)] bg-[var(--terminal-panel)] font-mono text-[9.5px] ${
         paused ? "tape-paused" : ""
       }`}
       onMouseEnter={() => setPaused(true)}
@@ -128,8 +120,8 @@ export function TerminalTape() {
           </Suspense>
         </div>
       </div>
-      <span className="flex shrink-0 items-center gap-2 border-l border-[var(--terminal-border)] bg-[var(--terminal-panel-2)] px-2 text-[10px] uppercase tracking-wider text-[var(--terminal-muted)]">
-        {paused ? "paused — click to focus" : "hover · pause"}
+      <span className="hidden shrink-0 items-center gap-2 border-l border-[var(--terminal-border)] bg-[var(--terminal-panel-2)] px-2 text-[9px] uppercase tracking-wider text-[var(--terminal-muted)] sm:flex">
+        {paused ? "paused" : "hover pause"}
       </span>
     </div>
   );
