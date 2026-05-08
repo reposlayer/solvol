@@ -333,6 +333,12 @@ function dataModeStatusCopy(dataMode: string | undefined) {
   return "Checking public data mode";
 }
 
+function sourceEmptyStateCopy(dataMode: string | undefined) {
+  if (dataMode === "mock") return "Demo fallback is active; normalized source rows remain labeled as demo data.";
+  if (dataMode === "real") return "No normalized sources available for this live market yet.";
+  return "Checking public data mode before showing normalized source state.";
+}
+
 function sourceLooksOfficial(source: SourceDocument): boolean {
   const text = `${source.provider} ${source.category} ${source.title} ${source.url ?? ""}`.toLowerCase();
   return (
@@ -1997,10 +2003,12 @@ function DataSourcesPanel({
 function SourceLibraryPanel({
   sources,
   normalizedNews,
+  dataMode,
   onOpenProvenance,
 }: {
   sources: SourceDocument[];
   normalizedNews?: NewsItem[];
+  dataMode: string | undefined;
   onOpenProvenance?: (request: ProvenanceDrawerRequest) => void;
 }) {
   const provenanceByExternalId = new Map(
@@ -2051,7 +2059,7 @@ function SourceLibraryPanel({
           );
         })}
         {sources.length === 0 ? (
-          <div className="redesign-empty">No normalized sources loaded for this market yet. Live unavailable, demo data shown when fallback mode is active.</div>
+          <div className="redesign-empty">{sourceEmptyStateCopy(dataMode)}</div>
         ) : null}
       </div>
     </section>
@@ -3122,6 +3130,7 @@ export function SignalFlowWorkspace({
             <SourceLibraryPanel
               sources={intel?.sources ?? []}
               normalizedNews={intel?.normalizedNews}
+              dataMode={dataMode}
               onOpenProvenance={setProvenanceDrawer}
             />
             <EvidenceConfidencePanel items={confidenceItems} />

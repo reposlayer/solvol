@@ -151,7 +151,7 @@ test("completion audit docs reflect the current verification gate", async () => 
 
   assert.ok(requiredGateLine, "audit must describe the required pre-claim verification gate");
   assert.match(requiredGateLine, /git diff --check/);
-  assert.match(audit, /188 tests passed/);
+  assert.match(audit, /189 tests passed/);
   assert.doesNotMatch(audit, /17[0-9] tests passed|18[0-7] tests passed/);
 });
 
@@ -900,7 +900,7 @@ test("completion audit builder validates the latest verification log markers", (
   for (const marker of [
     "`npm run lint` -> passed",
     "`npx tsc --noEmit` -> passed",
-    "`node --test --experimental-strip-types test/*.test.ts` -> passed, 188 tests",
+    "`node --test --experimental-strip-types test/*.test.ts` -> passed, 189 tests",
     "`npm run build` -> passed",
     "`npm run bridge:canary:env-template` -> passed as a read-only dry run",
     "`npm run bridge:canary:check` -> passed as a read-only dry run and still reports `ready: false`",
@@ -913,7 +913,7 @@ test("completion audit builder validates the latest verification log markers", (
   }
 
   assert.ok(
-    byMarker.get("`node --test --experimental-strip-types test/*.test.ts` -> passed, 188 tests")
+    byMarker.get("`node --test --experimental-strip-types test/*.test.ts` -> passed, 189 tests")
       ?.referencedBy.includes("Required verification gate"),
     "verification log checks must connect markers back to the release gate",
   );

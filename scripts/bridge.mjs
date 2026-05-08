@@ -34,21 +34,90 @@ function parseEnvLine(line) {
 }
 
 function loadBridgeEnvFiles(cwd = process.cwd()) {
+  const files = [];
   for (const filename of [".env.local", ".env"]) {
     const path = resolve(cwd, filename);
-    if (!existsSync(path)) continue;
+    if (!existsSync(path)) {
+      files.push({
+        name: filename,
+        found: false,
+        parsedEntries: 0,
+        appliedEntries: 0,
+      });
+      continue;
+    }
 
     const content = readFileSync(path, "utf8");
+    let parsedEntries = 0;
+    let appliedEntries = 0;
     for (const line of content.split(/\r?\n/)) {
       const parsed = parseEnvLine(line);
       if (!parsed) continue;
+      parsedEntries += 1;
       const [name, value] = parsed;
-      if (process.env[name] === undefined) process.env[name] = value;
+      if (process.env[name] === undefined) {
+        process.env[name] = value;
+        appliedEntries += 1;
+      }
     }
+    files.push({
+      name: filename,
+      found: true,
+      parsedEntries,
+      appliedEntries,
+    });
+  }
+  return { readOnly: true, files };
+}
+
+const bridgeEnvFiles = loadBridgeEnvFiles();
+
+function loadBridgeDeploymentTarget(cwd = process.cwd()) {
+  const source = ".vercel/project.json";
+  const path = resolve(cwd, source);
+  if (!existsSync(path)) {
+    return {
+      readOnly: true,
+      source,
+      found: false,
+      applied: false,
+      targetEnvPresent: Boolean(process.env.SOLVOL_DEPLOY_TARGET?.trim()),
+    };
+  }
+
+  try {
+    const project = JSON.parse(readFileSync(path, "utf8"));
+    const projectId = typeof project.projectId === "string" ? project.projectId : "";
+    const orgId = typeof project.orgId === "string" ? project.orgId : "";
+    const projectName = typeof project.projectName === "string" ? project.projectName : "";
+    const targetEnvPresent = Boolean(process.env.SOLVOL_DEPLOY_TARGET?.trim());
+    const canDerive = Boolean(projectId && orgId);
+    if (!targetEnvPresent && canDerive) {
+      process.env.SOLVOL_DEPLOY_TARGET = `vercel:${projectName || "project"}:${projectId}`;
+    }
+    return {
+      readOnly: true,
+      source,
+      found: true,
+      applied: !targetEnvPresent && canDerive,
+      targetEnvPresent: targetEnvPresent || canDerive,
+      projectName: projectName || undefined,
+      hasProjectId: Boolean(projectId),
+      hasOrgId: Boolean(orgId),
+    };
+  } catch {
+    return {
+      readOnly: true,
+      source,
+      found: true,
+      applied: false,
+      targetEnvPresent: Boolean(process.env.SOLVOL_DEPLOY_TARGET?.trim()),
+      parseError: true,
+    };
   }
 }
 
-loadBridgeEnvFiles();
+const bridgeDeploymentTarget = loadBridgeDeploymentTarget();
 
 const { bridgeCommandManifest, readBridgeFeatureFlags } = await import("../src/lib/terminal/bridge-control.ts");
 
@@ -82,6 +151,8 @@ const payload = {
   command: command.name,
   description: command.description,
   args,
+  envFiles: bridgeEnvFiles,
+  deploymentTarget: bridgeDeploymentTarget,
   featureFlags: readBridgeFeatureFlags(),
 };
 

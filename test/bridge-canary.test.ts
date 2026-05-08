@@ -110,11 +110,13 @@ test("bridge canary check command emits read-only readiness payload", async () =
   const payload = JSON.parse(stdout) as {
     readOnly?: boolean;
     dryRun?: boolean;
+    envFiles?: { files?: Array<{ name?: string; found?: boolean; parsedEntries?: number; appliedEntries?: number }> };
     canaryReadiness?: { readOnly?: boolean; ready?: boolean; missingInputs?: string[] };
   };
 
   assert.equal(payload.readOnly, true);
   assert.equal(payload.dryRun, true);
+  assert.ok(payload.envFiles?.files?.some((file) => file.name === ".env.local"));
   assert.equal(payload.canaryReadiness?.readOnly, true);
   assert.equal(payload.canaryReadiness?.ready, true);
   assert.deepEqual(payload.canaryReadiness?.missingInputs, []);
@@ -141,9 +143,14 @@ test("bridge canary check command loads ignored local env files without echoing 
       env,
     });
     const payload = JSON.parse(stdout) as {
+      envFiles?: { files?: Array<{ name?: string; found?: boolean; parsedEntries?: number; appliedEntries?: number }> };
       canaryReadiness?: { ready?: boolean; missingInputs?: string[] };
     };
 
+    const localEnv = payload.envFiles?.files?.find((file) => file.name === ".env.local");
+    assert.equal(localEnv?.found, true);
+    assert.equal(localEnv?.parsedEntries, Object.keys(READY_ENV).length);
+    assert.equal(localEnv?.appliedEntries, Object.keys(READY_ENV).length);
     assert.equal(payload.canaryReadiness?.ready, true);
     assert.deepEqual(payload.canaryReadiness?.missingInputs, []);
     assert.doesNotMatch(stdout, /service-role|ops@example\.com|reviewer@example\.com|lead@example\.com/);

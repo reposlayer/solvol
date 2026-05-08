@@ -196,6 +196,19 @@ test("terminal live empty states do not imply mock whale data", async () => {
   assert.match(workspace, /<WhaleTrackerPanel wallets=\{walletActivity\} dataMode=\{dataMode\} \/>/);
 });
 
+test("terminal source empty states keep live and fallback copy separate", async () => {
+  const workspace = await readFile("src/components/terminal/SignalFlowWorkspace.tsx", "utf8");
+
+  assert.doesNotMatch(
+    workspace,
+    /No normalized sources loaded for this market yet\. Live unavailable, demo data shown when fallback mode is active\./,
+  );
+  assert.match(workspace, /No normalized sources available for this live market yet\./);
+  assert.match(workspace, /Demo fallback is active; normalized source rows remain labeled as demo data\./);
+  assert.match(workspace, /sourceEmptyStateCopy/);
+  assert.match(workspace, /<SourceLibraryPanel[\s\S]*dataMode=\{dataMode\}/);
+});
+
 test("terminal does not default unknown data mode to live", async () => {
   const workspace = await readFile("src/components/terminal/SignalFlowWorkspace.tsx", "utf8");
   const systemStatus = await readFile("src/components/terminal/SystemStatusPanel.tsx", "utf8");
