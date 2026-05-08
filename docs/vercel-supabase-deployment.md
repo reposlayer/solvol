@@ -8,7 +8,7 @@ Solvol Terminal stays read-only. Production setup must only enable public market
 - `vercel.json` runs `npm ci`, `npm run build`, and a production cron for `/api/internal/ingest`.
 - `.env*` and `.vercel/` are ignored so secrets stay out of GitHub.
 - `supabase/schema.sql` provisions the app tables, private `terminal-raw` Storage bucket, RLS policies, and explicit `service_role` Data API grants.
-- `npm run bridge:canary:check` is the promotion gate for Supabase, raw storage, fanout, observability, alert routing, deploy target, backup verification, source policy review, canary ownership, review, and rollback approval.
+- `npm run bridge:canary:check` is the promotion gate for Supabase, raw storage, fanout, observability, alert routing, deploy target, backup verification, source policy review, secret rotation verification, canary ownership, review, and rollback approval.
 - `npm run bridge:canary:env-template` emits read-only, shell-safe templates for missing handoff inputs. Use the primary `template` for production-canary and pre-canary Vercel values, and use `generalRolloutTemplate` only after canary when public rollout gates are being reviewed; do not commit populated secrets.
 
 ## Access Prerequisites
@@ -16,6 +16,14 @@ Solvol Terminal stays read-only. Production setup must only enable public market
 Before configuring canary values, confirm the operator has access to the Vercel team that owns the linked `solvol` project and can edit Vercel project settings for Production and the Preview environment used for staging. The operator also needs Supabase project admin access, including the project URL, publishable browser key, server-only service role key, private Storage bucket controls, SQL editor or migration permissions, backup verification evidence, and Auth redirect configuration.
 
 The same handoff must identify owners for observability, metrics, alert routing, source policy approval, canary review, and rollback approver signoff. If project/team access is missing, stop before entering placeholder values and restore access first; `npm run bridge:canary:check` must continue reporting `ready: false` until these external prerequisites are satisfied in the target environment.
+
+## Secret Exposure Response
+
+If a Supabase key, JWT secret, Postgres URL/password, Redis URL, observability DSN, alert-routing URL, cron secret, or source credential is pasted into chat, logs, a ticket, or any non-secret document, treat it as exposed and rotate it before canary. Do not put the exposed value into `.env.local`, command history, screenshots, docs, or tests. Replace the value in Vercel Project Settings or the secure vault only after rotating it at the source.
+
+For Supabase hosted projects, prefer the current publishable key for browser config and a server-only secret key for backend service access when available. Legacy `anon` and `service_role` JWT keys are tied to the project JWT secret; if either legacy key or the JWT secret was exposed, rotate or revoke according to the Supabase project key model and redeploy every dependent environment. Keep `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY`, the JWT secret, Postgres connection strings, and raw Storage service credentials server-only. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` may be public, but it must still be replaced if the project key was intentionally rotated.
+
+After rotation, run `npm run bridge:canary:check` and `npm run bridge:audit` in the target environment. Production canary stays blocked until the old value is no longer accepted, the replacement is deployed, backup/source-policy gates remain true, and the canary owner, canary reviewer, and rollback approver record the rotation evidence.
 
 ## Supabase Setup
 
@@ -50,6 +58,7 @@ Set these in Vercel Project Settings for Production and the Preview environment 
 | `SOLVOL_DEPLOY_TARGET` | server | Example: `vercel:solvol:production`. |
 | `SOLVOL_POSTGRES_BACKUP_VERIFIED` | server | Set `true` only after backup/restore verification. |
 | `SOLVOL_SOURCE_POLICY_REVIEWED` | server | Set `true` only after source-policy review. |
+| `SOLVOL_SECRET_ROTATION_VERIFIED` | server | Set `true` only after exposed or replaced server secrets have been rotated/revoked, redeployed, and reviewed. |
 | `SOLVOL_CANARY_OWNER` | server | Accountable canary owner email or team handle. |
 | `SOLVOL_CANARY_REVIEWER` | server | Reviewer accountable for canary evidence and rollout signoff. |
 | `SOLVOL_ROLLBACK_APPROVER` | server | Approver for rollback decisions. |

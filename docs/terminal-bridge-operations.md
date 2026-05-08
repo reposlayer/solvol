@@ -28,6 +28,14 @@ Use `npm run bridge:canary:env-template` when handing off to deployment operator
 
 Bridge CLI commands load `.env.local` and then `.env` from the current working directory before reading `process.env`; existing shell environment variables still take priority. Command payloads include an `envFiles` status with file names, found/not-found flags, and parsed/applied entry counts only, never values. Keep real Supabase service-role keys, JWT secrets, Postgres passwords, source credentials, observability DSNs, and alert-routing URLs in ignored local or deployment environment stores only. Do not commit those values, paste them into npm scripts, or expose them through `NEXT_PUBLIC_` variables.
 
+If `SOLVOL_DEPLOY_TARGET` is absent, bridge CLI commands may derive a local deployment-target marker from `.vercel/project.json` after env files are loaded. The payload reports only the metadata source, whether it was found/applied, project name, and project/org ID presence booleans; it does not print Vercel project or team IDs. This satisfies the local CLI deployment-target check for a linked Vercel workspace, but canary still requires the remaining infrastructure, observability, policy, owner, reviewer, and rollback gates.
+
+## Secret Exposure Response
+
+If any Supabase, Postgres, Redis, observability, alert-routing, cron, or source credential is pasted into chat, logs, a ticket, or a non-secret document, treat it as exposed before production canary. Do not copy the value into `.env.local`, shell history, npm scripts, tests, docs, or screenshots. Rotate or revoke the exposed value in the owning system, update Vercel Project Settings or the secure vault with the replacement, and rerun `npm run bridge:canary:check` only after the replacement is deployed.
+
+For Supabase, rotate exposed legacy `anon` or `service_role` keys through the project JWT secret or migrate the affected server-side usage to an `sb_secret_...` secret key and browser usage to an `sb_publishable_...` publishable key where the project supports new API keys. Keep `service_role`, `sb_secret_...`, JWT secret, Postgres URLs/passwords, and Storage service credentials server-only. Never expose them through `NEXT_PUBLIC_` variables. Promotion remains blocked until the old key is no longer accepted, backup/source-policy gates are re-confirmed, and the canary owner/reviewer signs off on the rotation evidence.
+
 Use `npm run bridge:audit` before any completion or promotion claim. The command is read-only and returns the prompt-to-artifact checklist from `src/lib/terminal/completion-audit.ts`, including the current `decision`, `missingInputs`, and `nextAction`.
 
 The same completion audit is exposed as `completionAudit` on `/api/terminal/bridge-status` for read-only operator dashboards that cannot run shell commands.
@@ -42,6 +50,7 @@ The rollout checker may report these operator inputs. Keep them in sync with `.e
 - `SOLVOL_ERROR_MONITORING_DSN`, `SOLVOL_METRICS_DSN`, and `SOLVOL_ALERT_ROUTING_URL`: required for source failure, replay, DLQ, and fanout lag monitoring.
 - `SOLVOL_DEPLOY_TARGET`: required to identify the staging/canary deployment target and rollback surface.
 - `SOLVOL_SOURCE_POLICY_REVIEWED`: required before live source polling leaves local/demo mode.
+- `SOLVOL_SECRET_ROTATION_VERIFIED`: required before production canary to confirm exposed or replaced Supabase, Postgres, source, observability, alert, and cron secrets have been rotated or revoked and redeployed.
 - `SOLVOL_STAGING_SHADOW_SOAK_PASSED`, `SOLVOL_REPLAY_DETERMINISM_VERIFIED`, and `SOLVOL_ANALYST_QA_APPROVED`: required before staging active can promote toward canary.
 - `SOLVOL_POSTGRES_BACKUP_VERIFIED`, `SOLVOL_CANARY_OWNER`, `SOLVOL_CANARY_REVIEWER`, and `SOLVOL_ROLLBACK_APPROVER`: required before production canary.
 - `SOLVOL_CANARY_WINDOW_PASSED` and `SOLVOL_NO_P1_P2_DEFECTS`: required before general rollout after canary.

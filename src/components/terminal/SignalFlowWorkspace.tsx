@@ -339,6 +339,18 @@ function sourceEmptyStateCopy(dataMode: string | undefined) {
   return "Checking public data mode before showing normalized source state.";
 }
 
+function sourceRailEmptyStateCopy(dataMode: string | undefined) {
+  if (dataMode === "mock") return "Demo fallback active; no normalized source rows in this rail.";
+  if (dataMode === "real") return "No normalized live sources indexed yet.";
+  return "Checking source data mode.";
+}
+
+function walletEmptyStateCopy(dataMode: string | undefined) {
+  if (dataMode === "mock") return "Demo fallback is active; mock wallet rows remain labeled as demo data.";
+  if (dataMode === "real") return "No public wallet flow available for this live market yet.";
+  return "Checking public data mode before showing wallet-flow state.";
+}
+
 function sourceLooksOfficial(source: SourceDocument): boolean {
   const text = `${source.provider} ${source.category} ${source.title} ${source.url ?? ""}`.toLowerCase();
   return (
@@ -1800,10 +1812,6 @@ function WhaleTrackerPanel({
   dataMode: string | undefined;
 }) {
   const sorted = [...wallets].sort((a, b) => b.notionalUsd - a.notionalUsd).slice(0, 6);
-  const emptyCopy =
-    dataMode === "mock"
-      ? "Demo fallback is active; mock wallet rows remain labeled as demo data."
-      : "No public wallet flow available for this live market yet.";
   return (
     <section className="turbo-panel terminal-whale-panel">
       <TurboPanelHeader kicker="Flow" title="Whale Tracker" meta={`${sorted.length} wallets`} />
@@ -1821,7 +1829,7 @@ function WhaleTrackerPanel({
           </article>
         ))}
         {sorted.length === 0 ? (
-          <div className="redesign-empty">{emptyCopy}</div>
+          <div className="redesign-empty">{walletEmptyStateCopy(dataMode)}</div>
         ) : null}
       </div>
     </section>
@@ -2433,6 +2441,7 @@ function DecisionRail({
   alertDraft,
   journal,
   commands,
+  dataMode,
 }: {
   focusedId: string;
   yes: number | null;
@@ -2442,6 +2451,7 @@ function DecisionRail({
   alertDraft: SmartAlertDraft;
   journal: DecisionJournalDraft;
   commands: CommandSuggestion[];
+  dataMode: string | undefined;
 }) {
   const { result, error } = useTerminal();
   const { data: ledger } = useSourceLedger(focusedId);
@@ -2532,7 +2542,7 @@ function DecisionRail({
               </em>
             </a>
           ))}
-          {sourceCount === 0 ? <p className="redesign-mini-copy">No normalized sources loaded.</p> : null}
+          {sourceCount === 0 ? <p className="redesign-mini-copy">{sourceRailEmptyStateCopy(dataMode)}</p> : null}
         </div>
       </section>
 
@@ -3298,6 +3308,7 @@ export function SignalFlowWorkspace({
               alertDraft={alertDraft}
               journal={journal}
               commands={commands}
+              dataMode={dataMode}
             />
           </div>
         </div>

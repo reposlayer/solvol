@@ -46,13 +46,22 @@ test("bridge operations runbook documents canary readiness and rollback paths", 
   assert.match(runbook, /readyForGeneralRollout/);
   assert.match(runbook, /accessPrerequisites/);
   assert.match(runbook, /generalRolloutTemplate/);
+  assert.match(runbook, /Secret Exposure Response/i);
+  assert.match(runbook, /rotate/i);
+  assert.match(runbook, /JWT secret/i);
+  assert.match(runbook, /service_role/i);
   assert.match(audit, /Prompt-To-Artifact Checklist/i);
   assert.match(audit, /production canary remains blocked/i);
   assert.match(deployment, /Access Prerequisites/i);
+  assert.match(deployment, /Secret Exposure Response/i);
   assert.match(deployment, /Vercel project settings/i);
   assert.match(deployment, /Vercel team/i);
   assert.match(deployment, /Supabase project/i);
   assert.match(deployment, /service role key/i);
+  assert.match(deployment, /publishable/i);
+  assert.match(deployment, /secret key/i);
+  assert.match(deployment, /JWT secret/i);
+  assert.match(deployment, /rotate/i);
   assert.match(deployment, /observability/i);
   assert.match(deployment, /alert routing/i);
   assert.match(deployment, /source policy/i);
@@ -82,6 +91,7 @@ test("bridge operations runbook documents canary readiness and rollback paths", 
     "SOLVOL_DEPLOY_TARGET",
     "SOLVOL_POSTGRES_BACKUP_VERIFIED",
     "SOLVOL_SOURCE_POLICY_REVIEWED",
+    "SOLVOL_SECRET_ROTATION_VERIFIED",
     "SOLVOL_CANARY_OWNER",
     "SOLVOL_CANARY_REVIEWER",
     "SOLVOL_ROLLBACK_APPROVER",

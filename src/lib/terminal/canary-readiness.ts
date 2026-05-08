@@ -244,6 +244,13 @@ export function evaluateTerminalBridgeCanaryReadiness(
       "SOLVOL_SOURCE_POLICY_REVIEWED",
       "Must be true before live source polling leaves local/demo mode.",
     ),
+    approvalCheck(
+      env,
+      "secret_rotation_review",
+      "Secret exposure rotation verified",
+      "SOLVOL_SECRET_ROTATION_VERIFIED",
+      "Must be true before production canary so exposed or replaced Supabase, Postgres, source, observability, and alerting secrets are no longer accepted.",
+    ),
     check(
       env,
       "canary_ownership",

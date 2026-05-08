@@ -209,6 +209,21 @@ test("terminal source empty states keep live and fallback copy separate", async 
   assert.match(workspace, /<SourceLibraryPanel[\s\S]*dataMode=\{dataMode\}/);
 });
 
+test("terminal secondary empty states keep pending data mode separate", async () => {
+  const workspace = await readFile("src/components/terminal/SignalFlowWorkspace.tsx", "utf8");
+
+  assert.doesNotMatch(
+    workspace,
+    /dataMode === "mock"\s*\?\s*"Demo fallback is active; mock wallet rows remain labeled as demo data\."\s*:\s*"No public wallet flow available for this live market yet\."/,
+  );
+  assert.match(workspace, /walletEmptyStateCopy/);
+  assert.match(workspace, /Checking public data mode before showing wallet-flow state\./);
+  assert.match(workspace, /sourceRailEmptyStateCopy/);
+  assert.match(workspace, /No normalized live sources indexed yet\./);
+  assert.match(workspace, /Checking source data mode\./);
+  assert.match(workspace, /<DecisionRail[\s\S]*dataMode=\{dataMode\}/);
+});
+
 test("terminal does not default unknown data mode to live", async () => {
   const workspace = await readFile("src/components/terminal/SignalFlowWorkspace.tsx", "utf8");
   const systemStatus = await readFile("src/components/terminal/SystemStatusPanel.tsx", "utf8");

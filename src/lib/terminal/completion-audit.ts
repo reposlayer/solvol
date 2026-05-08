@@ -903,7 +903,7 @@ function buildVerificationLogChecks(repoRoot: string): TerminalBridgeCompletionA
       referencedBy: ["Required verification gate"],
     },
     {
-      marker: "`node --test --experimental-strip-types test/*.test.ts` -> passed, 189 tests",
+      marker: "`node --test --experimental-strip-types test/*.test.ts` -> passed, 191 tests",
       referencedBy: ["Required verification gate"],
     },
     {

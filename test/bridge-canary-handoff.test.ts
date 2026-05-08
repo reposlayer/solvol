@@ -35,6 +35,7 @@ test("canary handoff aggregates readiness, rollout, policy, and observability bl
     "SOLVOL_METRICS_DSN",
     "SOLVOL_ALERT_ROUTING_URL",
     "SOLVOL_SOURCE_POLICY_REVIEWED",
+    "SOLVOL_SECRET_ROTATION_VERIFIED",
     "SOLVOL_CANARY_OWNER",
     "SOLVOL_CANARY_REVIEWER",
     "SOLVOL_ROLLBACK_APPROVER",
@@ -55,6 +56,7 @@ test("canary handoff becomes ready when canary and rollout gates are configured"
     SOLVOL_DEPLOY_TARGET: "staging",
     SOLVOL_POSTGRES_BACKUP_VERIFIED: "true",
     SOLVOL_SOURCE_POLICY_REVIEWED: "true",
+    SOLVOL_SECRET_ROTATION_VERIFIED: "true",
     SOLVOL_STAGING_SHADOW_SOAK_PASSED: "true",
     SOLVOL_REPLAY_DETERMINISM_VERIFIED: "true",
     SOLVOL_ANALYST_QA_APPROVED: "true",
@@ -100,6 +102,7 @@ test("canary env template emits shell-safe missing input checklist", () => {
   assert.match(handoff.template, /^SUPABASE_URL=$/m);
   assert.match(handoff.template, /^SUPABASE_SERVICE_ROLE_KEY=$/m);
   assert.match(handoff.template, /^SOLVOL_POSTGRES_BACKUP_VERIFIED=false$/m);
+  assert.match(handoff.template, /^SOLVOL_SECRET_ROTATION_VERIFIED=false$/m);
   assert.match(handoff.generalRolloutTemplate, /^SOLVOL_CANARY_WINDOW_PASSED=false$/m);
   assert.match(handoff.generalRolloutTemplate, /^SOLVOL_NO_P1_P2_DEFECTS=false$/m);
   assert.doesNotMatch(handoff.template, /\s+or\s+/);

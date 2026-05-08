@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +24,7 @@ const READY_ENV = {
   SOLVOL_DEPLOY_TARGET: "vercel:solvol-staging",
   SOLVOL_POSTGRES_BACKUP_VERIFIED: "true",
   SOLVOL_SOURCE_POLICY_REVIEWED: "true",
+  SOLVOL_SECRET_ROTATION_VERIFIED: "true",
   SOLVOL_CANARY_OWNER: "ops@example.com",
   SOLVOL_CANARY_REVIEWER: "reviewer@example.com",
   SOLVOL_ROLLBACK_APPROVER: "lead@example.com",
@@ -38,6 +39,7 @@ test("canary readiness reports missing mandatory production inputs", () => {
   assert.ok(readiness.missingInputs.includes("SUPABASE_SERVICE_ROLE_KEY"));
   assert.ok(readiness.missingInputs.includes("SOLVOL_BRIDGE_BROADCASTER_URL or SOLVOL_BRIDGE_REDIS_URL"));
   assert.ok(readiness.missingInputs.includes("SOLVOL_ALERT_ROUTING_URL"));
+  assert.ok(readiness.missingInputs.includes("SOLVOL_SECRET_ROTATION_VERIFIED"));
   assert.ok(readiness.missingInputs.includes("SOLVOL_CANARY_REVIEWER"));
   assert.ok(readiness.missingInputs.includes("SOLVOL_ROLLBACK_APPROVER"));
 });
@@ -154,6 +156,65 @@ test("bridge canary check command loads ignored local env files without echoing 
     assert.equal(payload.canaryReadiness?.ready, true);
     assert.deepEqual(payload.canaryReadiness?.missingInputs, []);
     assert.doesNotMatch(stdout, /service-role|ops@example\.com|reviewer@example\.com|lead@example\.com/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("bridge canary check derives deployment target from local Vercel metadata without echoing IDs", async () => {
+  const cwd = mkdtempSync(resolve(tmpdir(), "solvol-bridge-vercel-"));
+  try {
+    const envWithoutDeployTarget = Object.fromEntries(
+      Object.entries(READY_ENV).filter(([key]) => key !== "SOLVOL_DEPLOY_TARGET"),
+    );
+    writeFileSync(
+      resolve(cwd, ".env.local"),
+      Object.entries(envWithoutDeployTarget)
+        .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+        .join("\n"),
+    );
+    mkdirSync(resolve(cwd, ".vercel"));
+    writeFileSync(
+      resolve(cwd, ".vercel/project.json"),
+      JSON.stringify({
+        projectId: "prj_dummy_secret_id",
+        orgId: "team_dummy_secret_id",
+        projectName: "solvol-canary",
+      }),
+    );
+
+    const env = { ...process.env };
+    for (const key of Object.keys(READY_ENV)) delete env[key];
+
+    const { stdout } = await execFileAsync(process.execPath, [
+      "--experimental-strip-types",
+      resolve(repoRoot, "scripts/bridge.mjs"),
+      "bridge:canary:check",
+    ], {
+      cwd,
+      env,
+    });
+    const payload = JSON.parse(stdout) as {
+      deploymentTarget?: {
+        found?: boolean;
+        applied?: boolean;
+        targetEnvPresent?: boolean;
+        projectName?: string;
+        hasProjectId?: boolean;
+        hasOrgId?: boolean;
+      };
+      canaryReadiness?: { ready?: boolean; missingInputs?: string[] };
+    };
+
+    assert.equal(payload.deploymentTarget?.found, true);
+    assert.equal(payload.deploymentTarget?.applied, true);
+    assert.equal(payload.deploymentTarget?.targetEnvPresent, true);
+    assert.equal(payload.deploymentTarget?.projectName, "solvol-canary");
+    assert.equal(payload.deploymentTarget?.hasProjectId, true);
+    assert.equal(payload.deploymentTarget?.hasOrgId, true);
+    assert.equal(payload.canaryReadiness?.ready, true);
+    assert.deepEqual(payload.canaryReadiness?.missingInputs, []);
+    assert.doesNotMatch(stdout, /prj_dummy_secret_id|team_dummy_secret_id|service-role/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
