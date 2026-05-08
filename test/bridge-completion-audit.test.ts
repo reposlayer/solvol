@@ -187,6 +187,12 @@ test("completion audit builder emits a prompt-to-artifact checklist and current 
   assert.ok(blockers.has("SOLVOL_CANARY_REVIEWER"));
   assert.ok(audit.accessPrerequisites.some((prerequisite) => prerequisite.id === "vercel_project_settings"));
   assert.ok(audit.accessPrerequisites.some((prerequisite) => prerequisite.id === "supabase_project_admin"));
+  assert.ok(
+    audit.accessPrerequisites.some((prerequisite) => (
+      prerequisite.requiredAccess.some((item) => /secret exposure rotation/i.test(item))
+    )),
+    "completion audit access prerequisites must surface secret exposure rotation review",
+  );
   assert.ok(audit.verificationCommands.includes("npm run bridge:canary:env-template"));
   assert.ok(audit.verificationCommands.includes("npm run bridge:audit"));
   assert.match(audit.decision, /Do not mark/i);
@@ -936,4 +942,7 @@ test("bridge audit command emits the read-only completion audit payload", () => 
   assert.equal(payload.completionAudit.achieved, false);
   assert.ok(payload.completionAudit.missingInputs.includes("SOLVOL_CANARY_REVIEWER"));
   assert.ok(payload.completionAudit.accessPrerequisites.some((prerequisite: { id: string }) => prerequisite.id === "vercel_project_settings"));
+  assert.ok(payload.completionAudit.accessPrerequisites.some((prerequisite: { requiredAccess: string[] }) => (
+    prerequisite.requiredAccess.some((item) => /secret exposure rotation/i.test(item))
+  )));
 });

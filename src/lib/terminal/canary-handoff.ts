@@ -100,12 +100,13 @@ export const TERMINAL_BRIDGE_CANARY_ACCESS_PREREQUISITES: TerminalCanaryAccessPr
   },
   {
     id: "canary_ownership_approval",
-    label: "Canary ownership and rollback approval",
+    label: "Canary ownership, secret rotation, and rollback approval",
     requiredAccess: [
       "Named canary owner.",
       "Named canary reviewer.",
       "Named rollback approver.",
       "Completed source policy review.",
+      "Completed secret exposure rotation review.",
     ],
     note: "Human ownership and rollback authority remain required even when all technical environment values are present.",
   },

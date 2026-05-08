@@ -190,6 +190,9 @@ test("bridge status payload exposes runtime completion audit contract", () => {
   assert.equal(payload.completionAudit.achieved, false);
   assert.equal(payload.completionAudit.productionCanaryReady, false);
   assert.ok(payload.completionAudit.missingInputs.includes("SOLVOL_CANARY_REVIEWER"));
+  assert.ok(payload.completionAudit.accessPrerequisites.some((prerequisite) => (
+    prerequisite.requiredAccess.some((item) => /secret exposure rotation/i.test(item))
+  )));
   assert.ok(payload.completionAudit.verificationCommands.includes("npm run bridge:canary:check"));
   assert.ok(payload.completionAudit.verificationCommands.includes("npm run bridge:audit"));
   assert.equal(payload.canaryHandoff.readyForProductionCanary, false);

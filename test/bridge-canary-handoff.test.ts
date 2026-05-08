@@ -26,6 +26,14 @@ test("canary handoff aggregates readiness, rollout, policy, and observability bl
       "canary_ownership_approval",
     ],
   );
+  const approvalPrerequisite = handoff.accessPrerequisites.find((prerequisite) => (
+    prerequisite.id === "canary_ownership_approval"
+  ));
+  assert.ok(approvalPrerequisite);
+  assert.ok(
+    approvalPrerequisite.requiredAccess.some((item) => /secret exposure rotation/i.test(item)),
+    "canary access prerequisites must name secret exposure rotation review",
+  );
 
   const blockers = new Set(handoff.blockerSummary.flatMap((blocker) => blocker.missingInputs));
   for (const input of [
