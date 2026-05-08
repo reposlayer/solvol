@@ -1,12 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
   evaluateTerminalBridgeCanaryReadiness,
 } from "../src/lib/terminal/canary-readiness.ts";
 
 const execFileAsync = promisify(execFile);
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const READY_ENV = {
   SUPABASE_URL: "https://example.supabase.co",
@@ -113,4 +118,36 @@ test("bridge canary check command emits read-only readiness payload", async () =
   assert.equal(payload.canaryReadiness?.readOnly, true);
   assert.equal(payload.canaryReadiness?.ready, true);
   assert.deepEqual(payload.canaryReadiness?.missingInputs, []);
+});
+
+test("bridge canary check command loads ignored local env files without echoing values", async () => {
+  const cwd = mkdtempSync(resolve(tmpdir(), "solvol-bridge-env-"));
+  try {
+    writeFileSync(
+      resolve(cwd, ".env.local"),
+      Object.entries(READY_ENV)
+        .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+        .join("\n"),
+    );
+    const env = { ...process.env };
+    for (const key of Object.keys(READY_ENV)) delete env[key];
+
+    const { stdout } = await execFileAsync(process.execPath, [
+      "--experimental-strip-types",
+      resolve(repoRoot, "scripts/bridge.mjs"),
+      "bridge:canary:check",
+    ], {
+      cwd,
+      env,
+    });
+    const payload = JSON.parse(stdout) as {
+      canaryReadiness?: { ready?: boolean; missingInputs?: string[] };
+    };
+
+    assert.equal(payload.canaryReadiness?.ready, true);
+    assert.deepEqual(payload.canaryReadiness?.missingInputs, []);
+    assert.doesNotMatch(stdout, /service-role|ops@example\.com|reviewer@example\.com|lead@example\.com/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });

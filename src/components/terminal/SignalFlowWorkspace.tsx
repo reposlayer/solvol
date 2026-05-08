@@ -318,6 +318,21 @@ function metricToneClass(value: number | null | undefined) {
   return "";
 }
 
+function dataModeLabel(
+  dataMode: string | undefined,
+  labels: { real?: string; mock?: string; pending?: string } = {},
+) {
+  if (dataMode === "mock") return labels.mock ?? "demo fallback";
+  if (dataMode === "real") return labels.real ?? "live";
+  return labels.pending ?? "checking";
+}
+
+function dataModeStatusCopy(dataMode: string | undefined) {
+  if (dataMode === "mock") return "Live unavailable, demo data shown";
+  if (dataMode === "real") return "Live public data shown";
+  return "Checking public data mode";
+}
+
 function sourceLooksOfficial(source: SourceDocument): boolean {
   const text = `${source.provider} ${source.category} ${source.title} ${source.url ?? ""}`.toLowerCase();
   return (
@@ -704,7 +719,7 @@ function LiveDeskRibbon({
         <span>{marketCount} markets loaded</span>
         <span>Saved locally / synced when logged in</span>
         <span>Pinned-only view</span>
-        <span>{dataMode === "mock" ? "Live unavailable, demo data shown" : "Live public data shown"}</span>
+        <span>{dataModeStatusCopy(dataMode)}</span>
       </div>
     </>
   );
@@ -1302,7 +1317,11 @@ function EditorialMarketBriefingPanel({
 }) {
   return (
     <aside className="turbo-panel editorial-market-briefing">
-      <TurboPanelHeader kicker="Briefing" title="Market Briefing" meta={dataMode === "mock" ? "demo" : "live"} />
+      <TurboPanelHeader
+        kicker="Briefing"
+        title="Market Briefing"
+        meta={dataModeLabel(dataMode, { real: "live", mock: "demo", pending: "checking" })}
+      />
       <div className="editorial-briefing-lede">
         <strong>{status.label}</strong>
         <p>{status.detail}</p>
@@ -1310,7 +1329,7 @@ function EditorialMarketBriefingPanel({
       <div className="editorial-briefing-stat-grid">
         <span>Sources <strong>{sourceCount}</strong></span>
         <span>Trades <strong>{tradeCount}</strong></span>
-        <span>Mode <strong>{dataMode ?? "real"}</strong></span>
+        <span>Mode <strong>{dataModeLabel(dataMode, { real: "real", mock: "mock", pending: "checking" })}</strong></span>
       </div>
       <p>{moveText}</p>
       {fallbackReason ? <em>{fallbackReason}</em> : null}
@@ -1767,8 +1786,18 @@ function MovementScannerPanel({
   );
 }
 
-function WhaleTrackerPanel({ wallets }: { wallets: WalletActivity[] }) {
+function WhaleTrackerPanel({
+  wallets,
+  dataMode,
+}: {
+  wallets: WalletActivity[];
+  dataMode: string | undefined;
+}) {
   const sorted = [...wallets].sort((a, b) => b.notionalUsd - a.notionalUsd).slice(0, 6);
+  const emptyCopy =
+    dataMode === "mock"
+      ? "Demo fallback is active; mock wallet rows remain labeled as demo data."
+      : "No public wallet flow available for this live market yet.";
   return (
     <section className="turbo-panel terminal-whale-panel">
       <TurboPanelHeader kicker="Flow" title="Whale Tracker" meta={`${sorted.length} wallets`} />
@@ -1786,7 +1815,7 @@ function WhaleTrackerPanel({ wallets }: { wallets: WalletActivity[] }) {
           </article>
         ))}
         {sorted.length === 0 ? (
-          <div className="redesign-empty">No wallet flow available for this market. Demo fallback supplies mock whale rows.</div>
+          <div className="redesign-empty">{emptyCopy}</div>
         ) : null}
       </div>
     </section>
@@ -1927,7 +1956,7 @@ function DataSourcesPanel({
       <TurboPanelHeader
         kicker="System"
         title="Data Sources / Status"
-        meta={dataMode === "mock" ? "demo fallback" : "live"}
+        meta={dataModeLabel(dataMode, { real: "live", mock: "demo fallback", pending: "checking" })}
       />
       <SystemStatusPanel status={status} dataMode={dataMode} fallbackReason={fallbackReason} />
       <div className="terminal-system-grid">
@@ -2952,7 +2981,13 @@ export function SignalFlowWorkspace({
               <span>All Markets</span>
               <h2>Every public market, immediately scannable</h2>
             </div>
-            <em>{inboxRows.length} loaded / {dataMode === "mock" ? "mock fallback" : "live public data"} / refresh {Math.round(TERMINAL_REFRESH.discovery.refetchIntervalMs / 1000)}s</em>
+            <em>
+              {inboxRows.length} loaded / {dataModeLabel(dataMode, {
+                real: "live public data",
+                mock: "mock fallback",
+                pending: "checking data mode",
+              })} / refresh {Math.round(TERMINAL_REFRESH.discovery.refetchIntervalMs / 1000)}s
+            </em>
           </div>
           {dataMode === "mock" || fallbackReason ? (
             <div className="terminal-fallback-notice">
@@ -3065,7 +3100,7 @@ export function SignalFlowWorkspace({
           </div>
           <div className="terminal-workspace-grid is-flow">
             <MovementScannerPanel moves={marketMoves} scores={intel?.scores} />
-            <WhaleTrackerPanel wallets={walletActivity} />
+            <WhaleTrackerPanel wallets={walletActivity} dataMode={dataMode} />
             <TapeIntelligencePanel signals={tapeSignals} />
             <LiquiditySummaryPanel book={orderBookSummary} />
           </div>
@@ -3163,7 +3198,7 @@ export function SignalFlowWorkspace({
               <span>Status</span>
               <h2>Public API health and fallback mode</h2>
             </div>
-            <em>{dataMode === "mock" ? "demo fallback" : "live reads"}</em>
+            <em>{dataModeLabel(dataMode, { real: "live reads", mock: "demo fallback", pending: "checking" })}</em>
           </div>
           <div className="terminal-workspace-grid is-status">
             <DataSourcesPanel

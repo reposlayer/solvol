@@ -187,6 +187,31 @@ test("terminal shell shows read-only account, navigation and fallback polish", a
   }
 });
 
+test("terminal live empty states do not imply mock whale data", async () => {
+  const workspace = await readFile("src/components/terminal/SignalFlowWorkspace.tsx", "utf8");
+
+  assert.doesNotMatch(workspace, /Demo fallback supplies mock whale rows/);
+  assert.match(workspace, /No public wallet flow available for this live market yet/);
+  assert.match(workspace, /Demo fallback is active; mock wallet rows remain labeled as demo data/);
+  assert.match(workspace, /<WhaleTrackerPanel wallets=\{walletActivity\} dataMode=\{dataMode\} \/>/);
+});
+
+test("terminal does not default unknown data mode to live", async () => {
+  const workspace = await readFile("src/components/terminal/SignalFlowWorkspace.tsx", "utf8");
+  const systemStatus = await readFile("src/components/terminal/SystemStatusPanel.tsx", "utf8");
+
+  assert.doesNotMatch(workspace + systemStatus, /dataMode \?\? "real"/);
+  assert.doesNotMatch(workspace + systemStatus, /status\?\.mode \?\? "real"/);
+  assert.doesNotMatch(workspace, /dataMode === "mock" \? "demo" : "live"/);
+  assert.doesNotMatch(workspace, /dataMode === "mock" \? "demo fallback" : "live"/);
+  assert.doesNotMatch(workspace, /dataMode === "mock" \? "mock fallback" : "live public data"/);
+  assert.doesNotMatch(workspace, /dataMode === "mock" \? "demo fallback" : "live reads"/);
+  assert.match(workspace + systemStatus, /Checking public data mode/);
+  assert.match(workspace + systemStatus, /checking data mode/);
+  assert.match(workspace, /dataModeLabel/);
+  assert.match(systemStatus, /status\?\.mode \?\? "checking"/);
+});
+
 test("terminal market discovery exposes full Polymarket browse and search parameters", async () => {
   const workspace = await readFile("src/components/terminal/SignalFlowWorkspace.tsx", "utf8");
   const hook = await readFile("src/hooks/useTerminalDiscovery.ts", "utf8");

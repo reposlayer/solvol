@@ -1,5 +1,55 @@
 #!/usr/bin/env node
 
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+function parseEnvLine(line) {
+  let trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) return null;
+  if (trimmed.startsWith("export ")) trimmed = trimmed.slice("export ".length).trimStart();
+
+  const separator = trimmed.indexOf("=");
+  if (separator <= 0) return null;
+
+  const name = trimmed.slice(0, separator).trim();
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return null;
+
+  let value = trimmed.slice(separator + 1).trim();
+  const quote = value[0];
+  if ((quote === "\"" || quote === "'") && value.endsWith(quote)) {
+    value = value.slice(1, -1);
+    if (quote === "\"") {
+      value = value
+        .replace(/\\n/g, "\n")
+        .replace(/\\r/g, "\r")
+        .replace(/\\t/g, "\t")
+        .replace(/\\"/g, "\"")
+        .replace(/\\\\/g, "\\");
+    }
+  } else {
+    value = value.replace(/\s+#.*$/, "").trim();
+  }
+
+  return [name, value];
+}
+
+function loadBridgeEnvFiles(cwd = process.cwd()) {
+  for (const filename of [".env.local", ".env"]) {
+    const path = resolve(cwd, filename);
+    if (!existsSync(path)) continue;
+
+    const content = readFileSync(path, "utf8");
+    for (const line of content.split(/\r?\n/)) {
+      const parsed = parseEnvLine(line);
+      if (!parsed) continue;
+      const [name, value] = parsed;
+      if (process.env[name] === undefined) process.env[name] = value;
+    }
+  }
+}
+
+loadBridgeEnvFiles();
+
 const { bridgeCommandManifest, readBridgeFeatureFlags } = await import("../src/lib/terminal/bridge-control.ts");
 
 const [commandName, ...args] = process.argv.slice(2);
